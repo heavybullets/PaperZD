@@ -9,7 +9,8 @@
 
 UPaperZDAnimationSource::UPaperZDAnimationSource()
  : bSupportsBlending(false)
- , bSupportsAnimationLayers(false)
+ , bSupportsBlendLayers(false)
+ , bSupportsCompositeAnimationLayers(false)
 {}
 
 #if WITH_EDITOR

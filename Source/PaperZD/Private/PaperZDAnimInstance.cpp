@@ -43,6 +43,14 @@ UPaperZDAnimPlayer* UPaperZDAnimInstance::GetPlayer() const
 	return AnimPlayer;
 }
 
+void UPaperZDAnimInstance::ApplyAnimationSkinToLayer(UPaperZDAnimationSkin* Skin, int32 Layer /* = 0 */)
+{
+	if (AnimPlayer)
+	{
+		AnimPlayer->ApplyAnimationSkinToLayer(Skin, Layer);
+	}
+}
+
 bool UPaperZDAnimInstance::AllowsTransitionalStates() const
 {
 	return bAllowTransitionalStates;
@@ -96,6 +104,7 @@ void UPaperZDAnimInstance::Init(TScriptInterface<IPaperZDAnimInstanceManager> In
 	AnimPlayer = NewObject<UPaperZDAnimPlayer>(this);
 	AnimPlayer->Init(AnimSource);
 	AnimPlayer->RegisterRenderComponent(Manager->GetRenderComponent());
+	AnimPlayer->RegisterLayerLinks(Manager->GetLayerLinkData());
 	Manager->OnSetupAnimPlayer(AnimPlayer);
 
 	//Bind the corresponding delegates

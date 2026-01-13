@@ -73,6 +73,18 @@ void UPaperZDAnimPlayer::Init(const UPaperZDAnimationSource* AnimationSource)
 		{
 			PlaybackHandle->ConfigureRenderComponent(RegisteredRenderComponent.Get(), bPreviewPlayer);
 		}
+
+		//Add enough skin slots to accommodate the composite layers
+		if (AnimationSource->SupportsCompositeAnimationLayers())
+		{
+			//Create skin slots for the main and composite layers
+			const TArray<FPaperZDCompositeLayerData>& LayerData = AnimationSource->GetCompositeLayerData();
+			RegisteredPerLayerSkins.AddDefaulted(LayerData.Num() + 1);
+		}
+		else
+		{
+			RegisteredPerLayerSkins.AddDefaulted();
+		}
 	}
 }
 
@@ -186,6 +198,16 @@ void UPaperZDAnimPlayer::PlaySingleAnimation(const UPaperZDAnimSequence* AnimSeq
 		
 		//Update the playback
 		PlaybackHandle->UpdateRenderPlayback(RegisteredRenderComponent.Get(), LastPlaybackData, bPreviewPlayer);
+
+		//Process any secondary linked layer
+		for (const FPaperZDLayerLinkData& LinkData : RegisteredLayerLinks)
+		{
+			if (LinkData.LinkedComponentPtr.IsValid())
+			{
+				//Update playback, no playback callbacks are triggered for secondary components
+				PlaybackHandle->UpdateRenderPlayback(LinkData.LinkedComponentPtr.Get(), LastPlaybackData, bPreviewPlayer, LinkData.LayerIndex);
+			}
+		}
 	}
 
 	//Process any pending notify that was deferred to after the render pass
@@ -197,7 +219,8 @@ void UPaperZDAnimPlayer::Play(const FPaperZDAnimationPlaybackData& PlaybackData)
 	if (PlaybackData.WeightedAnimations.Num() && PlaybackHandle && RegisteredRenderComponent.IsValid())
 	{
 		//Update playback
-		PlaybackHandle->UpdateRenderPlayback(RegisteredRenderComponent.Get(), PlaybackData, bPreviewPlayer);
+		UPaperZDAnimationSkin* Skin = RegisteredPerLayerSkins.IsValidIndex(0) ? RegisteredPerLayerSkins[0] : nullptr;
+		PlaybackHandle->UpdateRenderPlayback(RegisteredRenderComponent.Get(), PlaybackData, bPreviewPlayer, 0 , Skin);
 
 		//Store information for backwards support 
 		const UPaperZDAnimSequence* PreviousAnimSequence = LastWeightedAnimation.AnimSequencePtr.Get();
@@ -208,6 +231,17 @@ void UPaperZDAnimPlayer::Play(const FPaperZDAnimationPlaybackData& PlaybackData)
 		if (bFireSequenceChangedEvents && OnPlaybackSequenceChanged.IsBound() && LastWeightedAnimation.AnimSequencePtr.Get() != PreviousAnimSequence)
 		{
 			OnPlaybackSequenceChanged.Broadcast(PreviousAnimSequence, LastWeightedAnimation.AnimSequencePtr.Get(), GetPlaybackProgress());
+		}
+
+		//Process any secondary linked layer
+		for (const FPaperZDLayerLinkData& LinkData : RegisteredLayerLinks)
+		{
+			if (LinkData.LinkedComponentPtr.IsValid())
+			{
+				//Update playback, no playback callbacks are triggered for secondary components
+				Skin = RegisteredPerLayerSkins.IsValidIndex(LinkData.LayerIndex) ? RegisteredPerLayerSkins[LinkData.LayerIndex] : nullptr;
+				PlaybackHandle->UpdateRenderPlayback(LinkData.LinkedComponentPtr.Get(), PlaybackData, bPreviewPlayer, LinkData.LayerIndex, Skin);
+			}
 		}
 	}
 
@@ -223,6 +257,31 @@ void UPaperZDAnimPlayer::RegisterRenderComponent(UPrimitiveComponent* RenderComp
 	if (PlaybackHandle)
 	{
 		PlaybackHandle->ConfigureRenderComponent(RenderComponent, bPreviewPlayer);
+	}
+}
+
+void UPaperZDAnimPlayer::RegisterLayerLinks(const TArray<FPaperZDLayerLinkData>& LayerLinkData)
+{
+	RegisteredLayerLinks = LayerLinkData;
+
+	//Chance to configure the given render component
+	if (PlaybackHandle)
+	{
+		for (const FPaperZDLayerLinkData& Link : RegisteredLayerLinks)
+		{
+			if (Link.LinkedComponentPtr.IsValid())
+			{
+				PlaybackHandle->ConfigureRenderComponent(Link.LinkedComponentPtr.Get(), bPreviewPlayer);
+			}
+		}
+	}
+}
+
+void UPaperZDAnimPlayer::ApplyAnimationSkinToLayer(UPaperZDAnimationSkin* Skin, int32 Layer /* = 0 */)
+{
+	if (RegisteredPerLayerSkins.Num() > Layer)
+	{
+		RegisteredPerLayerSkins[Layer] = Skin;
 	}
 }
 

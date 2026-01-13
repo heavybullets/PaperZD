@@ -107,7 +107,7 @@ private:
 public:
 	UPROPERTY()
 	FName DisplayName_DEPRECATED; //@Deprecated
-
+		
 	UPROPERTY()
 	UPaperFlipbook* PaperFlipbook_DEPRECATED; //@Deprecated
 
@@ -218,14 +218,8 @@ public:
 		if (bDirectionalSequence)
 		{
 			//Obtain the directional preview index from the given angle
-			FArrayProperty* ArrayProperty = GetAnimDataSourceProperty();
-			FScriptArrayHelper ArrayHelper(ArrayProperty, ArrayProperty->ContainerPtrToValuePtr<uint8>(this));
-			const int32 Num = ArrayHelper.Num();
-			const float AngleSepparation = 360.0f / Num;
-
-			//We need to account for angles that are negative, for this we add a full revolution and then obtain the modulo, which will ensure we're always at a normalized range
-			const int32 Area = (DirectionalAngle + DirectionalAngleOffset + AngleSepparation / 2.0f + 360.0f) / AngleSepparation;
-			return GetAnimationDataByIndex<T>(Area % Num);
+			const int32 DirectionIndex = GetDirectionIndexByAngle(DirectionalAngle);
+			return GetAnimationDataByIndex<T>(DirectionIndex);
 		}
 		else
 		{ 
@@ -239,6 +233,20 @@ public:
 
 	/* Angle to offset the "Directional Sequence" */
 	FORCEINLINE float GetDirectionalAngleOffset() const { return DirectionalAngleOffset; }
+
+	/* Translate the directional angle to a usable directional animation index. */
+	int32 GetDirectionIndexByAngle(float DirectionalAngle) const
+	{
+		//Obtain the directional preview index from the given angle
+		FArrayProperty* ArrayProperty = GetAnimDataSourceProperty();
+		FScriptArrayHelper ArrayHelper(ArrayProperty, ArrayProperty->ContainerPtrToValuePtr<uint8>(this));
+		const int32 Num = ArrayHelper.Num();
+		const float AngleSeparation = 360.0f / Num;
+
+		//We need to account for angles that are negative, for this we add a full revolution and then obtain the modulo, which will ensure we're always at a normalized range
+		const int32 Area = (DirectionalAngle + DirectionalAngleOffset + AngleSeparation / 2.0f + 360.0f) / AngleSeparation;
+		return Area % Num;
+	}
 
 #if WITH_EDITOR
 	void PostEditUndo() override;

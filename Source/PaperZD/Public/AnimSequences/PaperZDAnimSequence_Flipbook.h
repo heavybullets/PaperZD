@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "PaperZDAnimSequence.h"
-#include "PaperFlipbook.h"
+#include "AnimSequences/PaperZDFlipbookAnimDataSource.h"
 #include "PaperZDAnimSequence_Flipbook.generated.h"
 
 /**
@@ -23,10 +23,17 @@ class PAPERZD_API UPaperZDAnimSequence_Flipbook : public UPaperZDAnimSequence
 	TObjectPtr<UPaperFlipbook> Flipbook_DEPRECATED;
 	
 	/* Contains the render information for displaying the flipbook, multi-directional. */
+	UPROPERTY()
+	TArray<TObjectPtr<UPaperFlipbook>> AnimDataSource_DEPRECATED;
+
+	/* Contains the render information for displaying the flipbook, multi-directional. */
 	UPROPERTY(EditAnywhere, Category = "AnimSequence")
-	TArray<TObjectPtr<UPaperFlipbook>> AnimDataSource;
+	TArray<FPaperZDFlipbookAnimDataSource> AnimData;
 	
 public:
+
+	//Easy getter for the AnimData
+	FORCEINLINE const TArray<FPaperZDFlipbookAnimDataSource>& GetAnimDataSource() const { return AnimData; }
 
 	//~ Begin UObject Interface
 	virtual void PostLoad() override;
@@ -41,5 +48,5 @@ public:
 
 private:
 	/* Helper for getting the primary flipbook of the sequence. */
-	FORCEINLINE UPaperFlipbook* GetPrimaryFlipbook() const { return AnimDataSource.Num() && AnimDataSource[0] ? AnimDataSource[0] : nullptr; }
+	FORCEINLINE UPaperFlipbook* GetPrimaryFlipbook() const { return AnimData.Num() ? AnimData[0].Animation : nullptr; }
 };

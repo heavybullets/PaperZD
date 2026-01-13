@@ -34,6 +34,9 @@ struct FPaperZDCustomVersion
 		//Added the custom component reference picker
 		AddedCustomComponentPicker = 7,
 
+		//Added composite layers
+		AddedCompositeLayers = 8,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

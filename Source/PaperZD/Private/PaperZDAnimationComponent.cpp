@@ -3,6 +3,8 @@
 #include "PaperZDAnimationComponent.h"
 #include "PaperZDAnimInstance.h"
 #include "Components/PrimitiveComponent.h"
+#include "AnimSequences/Sources/PaperZDAnimationSource.h"
+#include "PaperZDAnimBPGeneratedClass.h"
 #include "PaperZDCustomVersion.h"
 #include "Engine/World.h"
 
@@ -13,6 +15,7 @@
 // Sets default values for this component's properties
 UPaperZDAnimationComponent::UPaperZDAnimationComponent()
 	: AnimInstanceClass(nullptr)
+	, bBuildCompositeLayersAutomatically(false)
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
@@ -51,6 +54,7 @@ void UPaperZDAnimationComponent::BeginPlay()
 	Super::BeginPlay();
 
 	//Create a fresh AnimInstance object
+	GenerateCompositeLayers();
 	CreateAnimInstance();
 }
 
@@ -79,6 +83,11 @@ AActor* UPaperZDAnimationComponent::GetOwningActor() const
 UPrimitiveComponent* UPaperZDAnimationComponent::GetRenderComponent() const
 {
 	return Cast<UPrimitiveComponent>(RenderComponentRef.GetComponent(GetOwner()));
+}
+
+TArray<FPaperZDLayerLinkData> UPaperZDAnimationComponent::GetLayerLinkData() const
+{
+	return CompositeLayerLinkData;
 }
 
 TSubclassOf<UPaperZDAnimInstance> UPaperZDAnimationComponent::GetSequencerAnimInstanceClass() const
@@ -138,4 +147,44 @@ void UPaperZDAnimationComponent::InitAnimInstanceClass(TSubclassOf<UPaperZDAnimI
 {
 	AnimInstanceClass = InAnimInstanceClass;
 	AnimInstance = nullptr;
+}
+
+void UPaperZDAnimationComponent::GenerateCompositeLayers()
+{
+	if (bBuildCompositeLayersAutomatically)
+	{
+		//Obtain the CDO of the AnimInstance so we can check the data from the Animation Source
+		const UPaperZDAnimInstance* AnimInstanceCDO = GetDefault<UPaperZDAnimInstance>(AnimInstanceClass);
+		if (UPaperZDAnimBPGeneratedClass* AnimClass = Cast<UPaperZDAnimBPGeneratedClass>(AnimInstanceClass))
+		{
+			const UPaperZDAnimationSource* AnimSource = AnimClass->GetSupportedAnimationSource();
+			UPrimitiveComponent* RenderComponent = GetRenderComponent();
+			if (AnimSource && RenderComponent)
+			{
+				//Auto build the layer data
+				const TArray<FPaperZDCompositeLayerData>& CompositeData = AnimSource->GetCompositeLayerData();
+				CompositeLayerLinkData.Empty(CompositeData.Num());
+				for (int32 i = 0; i < CompositeData.Num(); i++)
+				{
+					const FPaperZDCompositeLayerData& LayerData = CompositeData[i];
+					UPrimitiveComponent* CompositeComponent = Cast<UPrimitiveComponent>(GetOwner()->AddComponentByClass(AnimSource->GetRenderComponentClass(), true, FTransform(LayerData.Offset), true));
+					CompositeComponent->SetupAttachment(RenderComponent);
+					GetOwner()->FinishAddComponent(CompositeComponent, true, FTransform(LayerData.Offset));
+					CompositeLayerLinkData.Emplace(CompositeComponent, i + 1);
+				}
+			}
+		}
+	}
+	else
+	{
+		CompositeLayerLinkData.Empty(CompositeLayerComponentsRefs.Num());
+
+		//Cache the reference into a weak pointer that can be used by the AnimPlayer
+		for (int32 i = 0; i < CompositeLayerComponentsRefs.Num(); i++)
+		{
+			const FPaperZDComponentReference& Ref = CompositeLayerComponentsRefs[i];
+			UPrimitiveComponent* PrimComponent = Cast<UPrimitiveComponent>(Ref.GetComponent(GetOwner()));
+			CompositeLayerLinkData.Emplace(PrimComponent, i + 1);
+		}
+	}
 }

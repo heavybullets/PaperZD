@@ -18,9 +18,19 @@ void UPaperZDAnimSequence_Flipbook::PostLoad()
 	const int32 ZDVersion = GetLinkerCustomVersion(FPaperZDCustomVersion::GUID);
 	if (ZDVersion < FPaperZDCustomVersion::AnimBlueprintRework)
 	{
-		AnimDataSource.SetNum(1);
-		AnimDataSource[0] = Flipbook_DEPRECATED;
+		AnimDataSource_DEPRECATED.SetNum(1);
+		AnimDataSource_DEPRECATED[0] = Flipbook_DEPRECATED;
 		bDirectionalSequence = false;
+	}
+
+	//Composite layers added
+	if (ZDVersion < FPaperZDCustomVersion::AddedCompositeLayers)
+	{
+		AnimData.Empty(AnimDataSource_DEPRECATED.Num());
+		for (UPaperFlipbook* Flipbook : AnimDataSource_DEPRECATED)
+		{
+			AnimData.Emplace(Flipbook);
+		}
 	}
 }
 
@@ -45,5 +55,5 @@ float UPaperZDAnimSequence_Flipbook::GetFramesPerSecond() const
 
 bool UPaperZDAnimSequence_Flipbook::IsDataSourceEntrySet(int32 EntryIndex) const
 {
-	return AnimDataSource.IsValidIndex(EntryIndex) ? AnimDataSource[EntryIndex] != nullptr : false;
+	return AnimData.IsValidIndex(EntryIndex) ? AnimData[EntryIndex].Animation != nullptr : false;
 }

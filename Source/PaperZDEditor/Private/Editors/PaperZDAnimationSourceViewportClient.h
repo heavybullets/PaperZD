@@ -32,6 +32,9 @@ class FPaperZDAnimationSourceViewportClient : public FEditorViewportClient
 	// Render component for the sprite being edited
 	TWeakObjectPtr<UPrimitiveComponent> AnimatedRenderComponent;
 
+	// List of composite components being edited
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> CompositeRenderComponents;
+
 	//Flag to mark the zoom of sprite (on first tick)
 	bool bSpriteZoomed;
 
@@ -92,4 +95,7 @@ public:
 private:
 	/* Required so we can have audio notifies. */
 	void UpdateAudioListener(const FSceneView& View);
+
+	/* Updates the composite renders component so they are in sync with the animation source. */
+	void UpdateCompositeRenderComponents();
 };

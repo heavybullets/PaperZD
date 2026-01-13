@@ -50,6 +50,9 @@ FPaperZDAnimationSourceViewportClient::FPaperZDAnimationSourceViewportClient(TWe
 	PreviewScene = &OwnedPreviewScene;
 	PreviewScene->AddComponent(AnimatedRenderComponent.Get(), FTransform::Identity);
 
+	//Set composite layers
+	UpdateCompositeRenderComponents();
+
 	// Set audio mute option
 	UWorld* World = PreviewScene->GetWorld();
 	if (World)
@@ -156,6 +159,7 @@ void FPaperZDAnimationSourceViewportClient::RefreshAnimationSource()
 {
 	//Just request another init, it should take care of any setup
 	Player->Init(AnimationSourcePtr.Get());
+	UpdateCompositeRenderComponents();
 }
 
 void FPaperZDAnimationSourceViewportClient::SetAnimSequence(const UPaperZDAnimSequence* AnimSequence)
@@ -362,4 +366,54 @@ void FPaperZDAnimationSourceViewportClient::SetViewRange(float NewMin, float New
 {
 	ViewInputMin = FMath::Max<float>(NewMin, 0.0f);
 	ViewInputMax = FMath::Min<float>(NewMax, GetTotalSequenceLength());
+}
+
+void FPaperZDAnimationSourceViewportClient::UpdateCompositeRenderComponents()
+{
+	//Create the composite render components if they exist
+	if (AnimationSourcePtr->SupportsCompositeAnimationLayers())
+	{
+		TArray<FPaperZDCompositeLayerData> LayerData = AnimationSourcePtr->GetCompositeLayerData();
+		TArray<FPaperZDLayerLinkData> LinkData;
+
+		//Check whether we need to add or destroy components
+		int32 ComponentsToAdd = LayerData.Num() - CompositeRenderComponents.Num();
+		if (ComponentsToAdd > 0)
+		{
+			CompositeRenderComponents.Reserve(LayerData.Num());
+			while(LayerData.Num() > CompositeRenderComponents.Num())
+			{
+				const int32 Index = CompositeRenderComponents.Num();
+				const FPaperZDCompositeLayerData& Data = LayerData[Index];
+				UPrimitiveComponent* CompositeComponent = NewObject<UPrimitiveComponent>(GetTransientPackage(), AnimationSourcePtr->GetRenderComponentClass());
+				PreviewScene->AddComponent(CompositeComponent, FTransform(Data.Offset));
+				LinkData.Emplace(CompositeComponent, Index + 1);
+				CompositeRenderComponents.Add(CompositeComponent);
+			}
+		}
+		else if (ComponentsToAdd < 0)
+		{
+			//Remove
+			while (LayerData.Num() < CompositeRenderComponents.Num())
+			{
+				const int32 Index = CompositeRenderComponents.Num() - 1;
+				PreviewScene->RemoveComponent(CompositeRenderComponents[Index].Get());
+				CompositeRenderComponents.RemoveAt(Index, EAllowShrinking::No);
+			}
+
+			CompositeRenderComponents.Shrink();
+		}
+
+		//Make sure the composite layers are synced
+		check(LayerData.Num() == CompositeRenderComponents.Num());
+		LinkData.Reserve(LayerData.Num());
+		for (int32 i = 0; i < LayerData.Num(); i++)
+		{
+			const FPaperZDCompositeLayerData& Data = LayerData[i];
+			CompositeRenderComponents[i]->SetRelativeLocation(Data.Offset);
+		}
+
+		//Link the layers to the player
+		Player->RegisterLayerLinks(LinkData);
+	}
 }

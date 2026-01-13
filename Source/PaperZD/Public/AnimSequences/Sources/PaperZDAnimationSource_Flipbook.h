@@ -13,6 +13,10 @@ class PAPERZD_API UPaperZDAnimationSource_Flipbook : public UPaperZDAnimationSou
 {
 	GENERATED_BODY()
 
+	/* Offsets when using layered sprites. */
+	UPROPERTY(EditAnywhere, Category = "Layers")
+	TArray<FPaperZDCompositeLayerData> AdditionalLayerData;
+
 public:
 	//ctor
 	UPaperZDAnimationSource_Flipbook();
@@ -20,5 +24,6 @@ public:
 	//~ Begin UPaperZDAnimationSource Interface
 	virtual TSubclassOf<UPaperZDPlaybackHandle> GetPlaybackHandleClass() const override;
 	virtual TSubclassOf<UPrimitiveComponent> GetRenderComponentClass() const override;
+	virtual TArray<FPaperZDCompositeLayerData> GetCompositeLayerData() const override;
 	//~ End UPaperZDAnimationSource Interface
 };

@@ -23,6 +23,7 @@ public:
 
 	// ~IPaperZDEditorProxy
 	virtual UEdGraph* CreateNewAnimationGraph(UPaperZDAnimBP* InAnimBP) override;
+	virtual TArray<FAssetData> GetAnimSequencesForSource(UPaperZDAnimationSource* Source) override;
 	virtual void UpdateNotifyFunctions(UPaperZDAnimationSource* InAnimSource) override;
 	virtual void UpdateNotifyFunctions(UPaperZDAnimBP* InAnimBP) override;
 	virtual void RenameCustomNotifyGraph(UPaperZDAnimBP* InAnimBP, FName OldName, FName NewName) override;

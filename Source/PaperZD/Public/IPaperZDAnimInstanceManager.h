@@ -3,6 +3,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
+#include "AnimSequences/Players/PaperZDLayerLink.h"
 #include "IPaperZDAnimInstanceManager.generated.h"
 
 class AActor;
@@ -35,6 +36,11 @@ public:
 	 * Obtains the "Render Component" to use when initializing the AnimPlayer on the AnimInstance.
 	 */
 	virtual UPrimitiveComponent* GetRenderComponent() const;
+
+	/**
+	 * Obtains the layer link data for rendering additional "Render Components".
+	 */
+	 virtual TArray<FPaperZDLayerLinkData> GetLayerLinkData() const;
 
 	/**
 	 * Called when setting up the AnimPlayer in order to do any custom setup needed.

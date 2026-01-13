@@ -44,6 +44,22 @@ UEdGraph* FPaperZDRuntimeEditorProxy::CreateNewAnimationGraph(UPaperZDAnimBP* In
 	return Cast<UEdGraph>(AnimGraph);
 }
 
+TArray<FAssetData> FPaperZDRuntimeEditorProxy::GetAnimSequencesForSource(UPaperZDAnimationSource* InAnimSource)
+{
+	//Setup filter
+	FARFilter Filter;
+	Filter.bRecursiveClasses = true;
+	Filter.ClassPaths.Add(UPaperZDAnimSequence::StaticClass()->GetClassPathName());
+	Filter.TagsAndValues.Add(UPaperZDAnimSequence::GetAnimSourceMemberName(), FAssetData(InAnimSource).GetExportTextName());
+
+	// Load the asset registry module
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	TArray<FAssetData> OutData;
+	AssetRegistryModule.Get().GetAssets(Filter, OutData);
+	return OutData;
+}
+
 void FPaperZDRuntimeEditorProxy::UpdateNotifyFunctions(UPaperZDAnimationSource* InAnimSource)
 {
 	//Setup filter

@@ -20,7 +20,7 @@ const FName UPaperZDAnimSequence::AnimSourceMemberName(TEXT("AnimSource"));
 //List of optional metadata specifiers
 namespace FPaperZDAnimSequenceDefaults
 {
-	FName AnimDataSource = TEXT("AnimDataSource");
+	FName AnimDataSource = TEXT("AnimData");
 }
 
 UPaperZDAnimSequence::UPaperZDAnimSequence(const FObjectInitializer& ObjectInitializer)

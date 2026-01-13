@@ -15,7 +15,7 @@ class PAPERZD_API UPaperZDPlaybackHandle_Flipbook : public UPaperZDPlaybackHandl
 	GENERATED_BODY()
 	
 	//~ Begin UPaperZDPlaybackHandle Interface
-	virtual void UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback = false) override;
+	virtual void UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback = false, int32 LayerIndex = 0, UPaperZDAnimationSkin* SkinOverride = nullptr) override;
 	virtual void ConfigureRenderComponent(UPrimitiveComponent* RenderComponent, bool bIsPreviewPlayback = false) override;
 	//~ End UPaperZDPlaybackHandle Interface
 };

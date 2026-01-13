@@ -17,6 +17,11 @@ UPrimitiveComponent* IPaperZDAnimInstanceManager::GetRenderComponent() const
 	return nullptr;
 }
 
+TArray<FPaperZDLayerLinkData> IPaperZDAnimInstanceManager::GetLayerLinkData() const
+{
+	return TArray<FPaperZDLayerLinkData>();
+}
+
 UWorld* IPaperZDAnimInstanceManager::OnGetWorld() const
 {
 	return GetOwningActor() ? GetOwningActor()->GetWorld() : nullptr;

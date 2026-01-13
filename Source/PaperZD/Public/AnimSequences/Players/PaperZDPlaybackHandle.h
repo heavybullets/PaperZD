@@ -8,6 +8,7 @@
 
 struct FPaperZDAnimationPlaybackData;
 class UPrimitiveComponent;
+class UPaperZDAnimationSkin;
 
 /**
  * Object that manages the playback of a certain AnimSequence type and ensures that it renders with the given playback data given by the AnimPlayer.
@@ -25,7 +26,7 @@ public:
 	 * @param PlaybackData			Animation data to be setup on the render component.
 	 * @param bIsPreviewPlayback	If this component will be used on an editor preview player.
 	 */
-	virtual void UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback = false) {}
+	virtual void UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback = false, int32 LayerIndex = 0, UPaperZDAnimationSkin* SkinOverride = nullptr) {}
 
 	/**
 	 * Called when initializing or adding a primitive component for playback with this handle.

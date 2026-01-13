@@ -2,40 +2,35 @@
 
 #pragma once
 #include "Factories/Factory.h"
-#include "PaperZDAnimBP.h"
-#include "PaperZDAnimBPFactory.generated.h"
+#include "PaperZDAnimationSkinFactory.generated.h"
 
 class UPaperZDAnimationSource;
 class SWindow;
 struct FAssetData;
 
 /**
- * Factory for PaperZD Animation Blueprints.
+ * Factory for PaperZD Animation Skins.
  */
 UCLASS()
-class UPaperZDAnimBPFactory : public UFactory
+class UPaperZDAnimationSkinFactory : public UFactory
 {
-	GENERATED_BODY()	
-
-	// The type of blueprint that will be created
-	TEnumAsByte<EBlueprintType> BlueprintType;
-
-	// The parent class of the created blueprint
-	TSubclassOf<UObject> ParentClass;
+	GENERATED_BODY()
 
 	/* Picked window Ptr */
 	TSharedPtr<SWindow> PickerWindow;
+		
+public:
+	/* Animation source to create this skin for. */
+	UPROPERTY()
+	TObjectPtr<class UPaperZDAnimationSource> TargetAnimSource;
 
 public:
-	/* Animation source in which to base the new blueprint. */
-	TObjectPtr<class UPaperZDAnimationSource> SupportedAnimationSource;
-
-public:
-	UPaperZDAnimBPFactory(const FObjectInitializer& ObjectInitializer);
-
+	UPaperZDAnimationSkinFactory(const FObjectInitializer& ObjectInitializer);
+	
 	//~ Begin UFactory Interface
 	virtual bool ConfigureProperties() override;
 	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
+	virtual bool ShouldShowInNewMenu() const override { return true; }
 	//~ Begin UFactory Interface
 
 private:

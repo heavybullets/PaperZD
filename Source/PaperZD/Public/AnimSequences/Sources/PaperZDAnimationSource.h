@@ -8,11 +8,23 @@
 #include "PaperZDAnimationSource.generated.h"
 
 class UPaperZDAnimSequence;
+class UPaperZDAnimationSkin;
 class UPaperZDPlaybackHandle;
 
 //delegate implementations
 DECLARE_MULTICAST_DELEGATE(FOnAnimationSourcePropertyChangeSignature);
 DECLARE_MULTICAST_DELEGATE(FOnAnimationSourceNotifyChangeSignature);
+
+/* Additional composite layer data that can be rendered alongside the main render component. */
+USTRUCT()
+struct FPaperZDCompositeLayerData
+{
+	GENERATED_BODY()
+
+	/* Offset of the layer against the main render component. */
+	UPROPERTY(EditAnywhere, Category = "Layers")
+	FVector Offset;
+};
 
 /**
  * An animation source is an object that serves as a root for AnimSequences to be grouped and shared through Animation Blueprints.
@@ -44,13 +56,21 @@ protected:
 	UPROPERTY(VisibleAnywhere, Category = "Features")
 	TSubclassOf<UPaperZDAnimSequence> SupportedAnimSequenceClass;
 
+	/* The animation skin asset that interfaces with this source. */
+	UPROPERTY(VisibleAnywhere, Category = "Features")
+	TSubclassOf<UPaperZDAnimationSkin> SupportedAnimationSkinClass;
+
 	/* Whether the animation source supports blending based animations (2d skeletal animations). */
 	UPROPERTY(VisibleAnywhere, Category = "Features")
 	bool bSupportsBlending;
 
+	/* Whether the animation source supports blend layers. */
+	UPROPERTY(VisibleAnywhere, Category = "Features")
+	bool bSupportsBlendLayers;
+
 	/* Whether the animation source supports animation layers. */
 	UPROPERTY(VisibleAnywhere, Category = "Features")
-	bool bSupportsAnimationLayers;
+	bool bSupportsCompositeAnimationLayers;
 
 public:
 	//ctor
@@ -58,8 +78,10 @@ public:
 
 	//getters
 	TSubclassOf<UPaperZDAnimSequence> GetSupportedAnimSequenceClass() const { return SupportedAnimSequenceClass; }
+	TSubclassOf<UPaperZDAnimationSkin> GetSupportedAnimationSkinClass() const { return SupportedAnimationSkinClass; }
 	FORCEINLINE bool SupportsBlending() const { return bSupportsBlending; }
-	FORCEINLINE bool SupportsAnimationLayers() const { return bSupportsAnimationLayers; }
+	FORCEINLINE bool SupportsBlendLayers() const { return bSupportsBlendLayers; }
+	FORCEINLINE bool SupportsCompositeAnimationLayers() const { return bSupportsCompositeAnimationLayers; }
 
 	/* Returns the playback handle that should be used for managing the rendering of the animations of this source. */
 	virtual TSubclassOf<UPaperZDPlaybackHandle> GetPlaybackHandleClass() const { return nullptr; }
@@ -69,6 +91,9 @@ public:
 
 	/* Returns the render component class to use for this animation source. Used for creating preview render components and validate which components can be used when trying to render the animations contained on this source. */
 	virtual TSubclassOf<UPrimitiveComponent> GetRenderComponentClass() const { return nullptr; }
+
+	/* Obtain the amount of additional composite layers for the source. */
+	virtual TArray<FPaperZDCompositeLayerData> GetCompositeLayerData() const { return TArray<FPaperZDCompositeLayerData>(); }
 
 #if WITH_EDITOR
 	//~ Begin UObject Interface

@@ -19,7 +19,7 @@ UPaperZDAnimGraphNode_LayerAnimations::UPaperZDAnimGraphNode_LayerAnimations()
 
 FText UPaperZDAnimGraphNode_LayerAnimations::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return FText::FromString(TEXT("Layer Animations"));
+	return FText::FromString(TEXT("Blend Animations by Layers"));
 }
 
 FLinearColor UPaperZDAnimGraphNode_LayerAnimations::GetNodeTitleColor() const
@@ -38,7 +38,7 @@ void UPaperZDAnimGraphNode_LayerAnimations::ValidateAnimNodeDuringCompilation(co
 	Super::ValidateAnimNodeDuringCompilation(ForAnimBP, MessageLog);
 
 	//We should check that this node isn't being used on an animation source that doesn't support it.
-	if (!ForAnimBP->GetSupportedAnimationSource()->SupportsAnimationLayers())
+	if (!ForAnimBP->GetSupportedAnimationSource()->SupportsBlendLayers())
 	{
 		MessageLog.Warning(TEXT("Animation layers aren't supported by the parent animation source, @@ node will not work."), this);
 	}
@@ -46,7 +46,7 @@ void UPaperZDAnimGraphNode_LayerAnimations::ValidateAnimNodeDuringCompilation(co
 
 bool UPaperZDAnimGraphNode_LayerAnimations::IsCompatibleWithAnimationSource(UPaperZDAnimationSource* InAnimSource) const
 {
-	return InAnimSource->SupportsAnimationLayers();
+	return InAnimSource->SupportsBlendLayers();
 }
 
 void UPaperZDAnimGraphNode_LayerAnimations::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins)

@@ -2,6 +2,8 @@
 
 #include "AnimSequences/Players/PaperZDPlaybackHandle_Flipbook.h"
 #include "AnimSequences/Players/PaperZDAnimationPlaybackData.h"
+#include "AnimSequences/Skins/PaperZDAnimationSkin.h"
+#include "AnimSequences/PaperZDFlipbookAnimDataSource.h"
 #include "PaperFlipbookComponent.h"
 #include "PaperFlipbook.h"
 
@@ -9,19 +11,33 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PaperZDPlaybackHandle_Flipbook)
 #endif
 
-void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback /* = false */)
+void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback /* = false */, int32 LayerIndex /* = 0 */, UPaperZDAnimationSkin* SkinOverride /* = nullptr */)
 {
 	UPaperFlipbookComponent* Sprite = Cast<UPaperFlipbookComponent>(RenderComponent);
 	if (Sprite)
 	{
+		//Search for the primary animation, depending on the layer we're rendering
 		const FPaperZDWeightedAnimation& PrimaryAnimation = PlaybackData.WeightedAnimations[0];
-		UPaperFlipbook* Flipbook = PrimaryAnimation.AnimSequencePtr->GetAnimationData<UPaperFlipbook*>(PlaybackData.DirectionalAngle, bIsPreviewPlayback);
-
-		//Check if the flipbook hasn't changed
-		if (Sprite->GetFlipbook() != Flipbook)
+		if (SkinOverride)
 		{
-			UPaperFlipbook* From = Sprite->GetFlipbook();
-			Sprite->SetFlipbook(Flipbook);
+			SkinOverride->ApplySkinToAnimation(PrimaryAnimation.AnimSequencePtr.Get(), RenderComponent, PlaybackData.DirectionalAngle);
+		}
+		else
+		{
+			//Use the AnimSequence default animation instead
+			const FPaperZDFlipbookAnimDataSource& AnimDataSource = PrimaryAnimation.AnimSequencePtr->GetAnimationData<FPaperZDFlipbookAnimDataSource>(PlaybackData.DirectionalAngle, bIsPreviewPlayback);
+			UPaperFlipbook* Flipbook = AnimDataSource.Animation.Get();;
+			if (LayerIndex > 0)
+			{
+				Flipbook = AnimDataSource.CompositeLayerAnimations.IsValidIndex(LayerIndex - 1) ? AnimDataSource.CompositeLayerAnimations[LayerIndex - 1] : nullptr;
+			}
+
+			//Check if the flipbook hasn't changed
+			if (Sprite->GetFlipbook() != Flipbook)
+			{
+				UPaperFlipbook* From = Sprite->GetFlipbook();
+				Sprite->SetFlipbook(Flipbook);
+			}
 		}
 
 		//We manage the time manually

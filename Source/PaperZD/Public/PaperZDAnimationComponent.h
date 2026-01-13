@@ -7,6 +7,7 @@
 #include "IPaperZDAnimInstanceManager.h"
 #include "PaperZDComponentReference.h"
 #include "Sequencer/IPaperZDSequencerSource.h"
+#include "AnimSequences/Players/PaperZDLayerLink.h"
 #include "PaperZDAnimationComponent.generated.h"
 
 class UPrimitiveComponent;
@@ -31,6 +32,18 @@ class PAPERZD_API UPaperZDAnimationComponent : public UActorComponent, public IP
 	/* Render component to update when using the animation blueprints. */
 	UPROPERTY(EditAnywhere, Category = "PaperZD", meta = (AllowAnyComponent, UseComponentPicker, AllowedClasses = "/Script/Engine.PrimitiveComponent"))
 	FPaperZDComponentReference RenderComponentRef;
+
+	/* If true, the composite layers get created automatically by the plugin, otherwise they don't need to be linked manually. */
+	UPROPERTY(EditAnywhere, Category = "PaperZD")
+	bool bBuildCompositeLayersAutomatically;
+
+	/* Additional render components linked to specific layers of animation. */
+	UPROPERTY(EditAnywhere, Category = "PaperZD", meta = (EditCondition = "!bBuildCompositeLayersAutomatically"))
+	TArray<FPaperZDComponentReference> CompositeLayerComponentsRefs;
+
+	/* Cached composite layer link data to be sent to the player, either filled by the composite components or built automatically. */
+	UPROPERTY()
+	TArray<FPaperZDLayerLinkData> CompositeLayerLinkData;
 
 	/* The animation instance used for managing the animation. */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "PaperZD", meta = (AllowPrivateAccess = " true"))
@@ -57,6 +70,7 @@ public:
 	//~ Begin IPaperZDAnimInstanceManager Interface
 	virtual AActor* GetOwningActor() const override;
 	virtual UPrimitiveComponent* GetRenderComponent() const override;
+	virtual TArray<FPaperZDLayerLinkData> GetLayerLinkData() const override;
 	//~ End IPaperZDAnimInstanceManager Interface
 
 	//~ Begin IPaperZDSequencerSource Interface
@@ -80,4 +94,7 @@ public:
 private:
 	/* Attempts to create a fresh AnimInstance object. */
 	void CreateAnimInstance();
+
+	/* Generate the composite link data and components required by the animation source. */
+	void GenerateCompositeLayers();
 };

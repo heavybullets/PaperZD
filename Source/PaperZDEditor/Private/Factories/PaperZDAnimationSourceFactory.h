@@ -15,6 +15,7 @@ class UPaperZDAnimationSourceFactory : public UFactory
 
 public:
 	/* Class to create when the factory needs to do so. */
+	UPROPERTY(Transient)
 	TSubclassOf<class UPaperZDAnimationSource> SelectedClass;
 
 public:

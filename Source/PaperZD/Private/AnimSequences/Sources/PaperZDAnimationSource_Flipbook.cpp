@@ -2,6 +2,7 @@
 
 #include "AnimSequences/Sources/PaperZDAnimationSource_Flipbook.h"
 #include "AnimSequences/Players/PaperZDPlaybackHandle_Flipbook.h"
+#include "AnimSequences/Skins/PaperZDAnimationSkin_Flipbook.h"
 #include "AnimSequences/PaperZDAnimSequence_Flipbook.h"
 #include "PaperFlipbookComponent.h"
 
@@ -12,8 +13,9 @@
 UPaperZDAnimationSource_Flipbook::UPaperZDAnimationSource_Flipbook()
 {
 	SupportedAnimSequenceClass = UPaperZDAnimSequence_Flipbook::StaticClass();
+	SupportedAnimationSkinClass = UPaperZDAnimationSkin_Flipbook::StaticClass();
 	bSupportsBlending = false;
-	bSupportsAnimationLayers = false;
+	bSupportsCompositeAnimationLayers = true;
 }
 
 TSubclassOf<UPaperZDPlaybackHandle> UPaperZDAnimationSource_Flipbook::GetPlaybackHandleClass() const
@@ -24,4 +26,9 @@ TSubclassOf<UPaperZDPlaybackHandle> UPaperZDAnimationSource_Flipbook::GetPlaybac
 TSubclassOf<UPrimitiveComponent> UPaperZDAnimationSource_Flipbook::GetRenderComponentClass() const
 {
 	return UPaperFlipbookComponent::StaticClass();
+}
+
+TArray<FPaperZDCompositeLayerData> UPaperZDAnimationSource_Flipbook::GetCompositeLayerData() const
+{
+	return AdditionalLayerData;
 }

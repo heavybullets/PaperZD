@@ -4,6 +4,7 @@
 #include "CoreMinimal.h"
 #include "AnimSequences/PaperZDAnimSequence.h"
 #include "AnimSequences/Players/PaperZDAnimationPlaybackData.h"
+#include "AnimSequences/Players/PaperZDLayerLink.h"
 #include "PaperZDAnimPlayer.generated.h"
 
 class UPrimitiveComponent;
@@ -11,6 +12,7 @@ class UPaperZDAnimInstance;
 class UPaperZDPlaybackHandle;
 class UPaperZDAnimationSource;
 class UPaperZDAnimNotifyState;
+class UPaperZDAnimationSkin;
 
 /**
  * The type of playbacks available for the player
@@ -41,9 +43,17 @@ class PAPERZD_API UPaperZDAnimPlayer : public UObject
 	UPROPERTY(Transient)
 	TObjectPtr<UPaperZDPlaybackHandle> PlaybackHandle;
 
+	/* Layer indexed list of skins currently affecting the playback of the animation. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UPaperZDAnimationSkin>> RegisteredPerLayerSkins;
+
 	/* The component that the player is using for rendering the animations. */
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UPrimitiveComponent> RegisteredRenderComponent;
+
+	/* Additional components that are linked to specific layers for rendering. */
+	UPROPERTY(Transient)
+	TArray<FPaperZDLayerLinkData> RegisteredLayerLinks;
 
 	/* Copy of the last stored playback data. */
 	FPaperZDAnimationPlaybackData LastPlaybackData;
@@ -199,6 +209,17 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Playback")
 	void RegisterRenderComponent(UPrimitiveComponent* RenderComponent);
+
+	/**
+	 * Registers the additional render components that will be linked to the layer system.
+	 * @param LayerLinkData				The layer data to use.
+	 */
+	 UFUNCTION(BlueprintCallable, Category = "Playback")
+	 void RegisterLayerLinks(const TArray<FPaperZDLayerLinkData>& LayerLinkData);
+
+	 /* Applies a skin on a specific animation layer. */
+	 UFUNCTION(BlueprintCallable, Category = "Playback")
+	 void ApplyAnimationSkinToLayer(UPaperZDAnimationSkin* Skin, int32 Layer = 0);
 
 	/* Returns true if the player is currently running. */
 	UFUNCTION(BlueprintPure, Category = "Playback")
