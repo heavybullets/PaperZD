@@ -134,6 +134,17 @@ void UPaperZDAnimationComponent::InitRenderComponent(UPrimitiveComponent* InRend
 	RenderComponent_DEPRECATED.PathToComponent = PathToComponent;
 }
 
+void UPaperZDAnimationComponent::InitCompositeLayerLinkData(TArray<UPrimitiveComponent*> InCompositeLayers)
+{
+	CompositeLayerComponentsRefs.Empty(InCompositeLayers.Num());
+	for (const UPrimitiveComponent* CompositeLayer : InCompositeLayers)
+	{
+		FPaperZDComponentReference& CompositeLayerComponentRef = CompositeLayerComponentsRefs.AddDefaulted_GetRef();
+		const FString PathToComponent = *CompositeLayer->GetPathName(GetOwner());
+		CompositeLayerComponentRef.PathToComponent = PathToComponent;
+	}
+}
+
 void UPaperZDAnimationComponent::SetAnimInstanceClass(TSubclassOf<UPaperZDAnimInstance> InAnimInstanceClass)
 {
 	AnimInstanceClass = InAnimInstanceClass;

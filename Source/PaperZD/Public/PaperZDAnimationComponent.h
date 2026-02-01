@@ -84,6 +84,9 @@ public:
 	/* Sets the render component to use before the AnimInstance has been created, use it on construction to set up the values for initialization. */
 	void InitRenderComponent(UPrimitiveComponent* InRenderComponent);
 
+	/* Sets the composite layers render components to use, use it on construction to set up the values for initialization */
+    void InitCompositeLayerLinkData(TArray<UPrimitiveComponent*> InCompositeLayers);
+
 	/* Sets the AnimInstanceClass to use, replacing any AnimInstane that could already be running. */
 	UFUNCTION(BlueprintCallable, Category = "PaperZD")
 	void SetAnimInstanceClass(TSubclassOf<UPaperZDAnimInstance> InAnimInstanceClass);
