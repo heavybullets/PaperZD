@@ -18,11 +18,11 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 	{
 		//Search for the primary animation, depending on the layer we're rendering
 		const FPaperZDWeightedAnimation& PrimaryAnimation = PlaybackData.WeightedAnimations[0];
-		if (SkinOverride)
-		{
-			SkinOverride->ApplySkinToAnimation(PrimaryAnimation.AnimSequencePtr.Get(), RenderComponent, PlaybackData.DirectionalAngle);
-		}
-		else
+		
+		//Check if we have a skin that wants to 'override' the default animation and skip the main 'render' logic if that's the case.
+		//Note: Skins could be applied and still wish for the default animation to be played on certain animation sources.
+		const bool bOverridenDefaultAnimation = SkinOverride && SkinOverride->ApplySkinToAnimation(PrimaryAnimation.AnimSequencePtr.Get(), RenderComponent, PlaybackData.DirectionalAngle); 
+		if (!bOverridenDefaultAnimation)
 		{
 			//Use the AnimSequence default animation instead
 			const FPaperZDFlipbookAnimDataSource& AnimDataSource = PrimaryAnimation.AnimSequencePtr->GetAnimationData<FPaperZDFlipbookAnimDataSource>(PlaybackData.DirectionalAngle, bIsPreviewPlayback);
@@ -35,7 +35,6 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 			//Check if the flipbook hasn't changed
 			if (Sprite->GetFlipbook() != Flipbook)
 			{
-				UPaperFlipbook* From = Sprite->GetFlipbook();
 				Sprite->SetFlipbook(Flipbook);
 			}
 		}

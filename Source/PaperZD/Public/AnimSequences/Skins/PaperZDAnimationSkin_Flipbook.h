@@ -42,7 +42,7 @@ public:
 	{}
 
 	//~ Begin UPaperZDAnimationSkin_Flipbook Interface
-	virtual void ApplySkinToAnimation(const UPaperZDAnimSequence* AnimSequence, UPrimitiveComponent* RenderComponent, float DirectionalAngle = 0.0f) override;
+	virtual bool ApplySkinToAnimation(const UPaperZDAnimSequence* AnimSequence, UPrimitiveComponent* RenderComponent, float DirectionalAngle = 0.0f) override;
 	virtual void OnAnimationSourceChanged() override;
 	//~ End UPaperZDAnimationSkin_Flipbook Interface
 

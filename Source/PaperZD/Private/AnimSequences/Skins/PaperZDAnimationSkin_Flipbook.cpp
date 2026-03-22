@@ -9,7 +9,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PaperZDAnimationSkin_Flipbook)
 #endif
 
-void UPaperZDAnimationSkin_Flipbook::ApplySkinToAnimation(const UPaperZDAnimSequence* AnimSequence, UPrimitiveComponent* RenderComponent, float DirectionalAngle /* = 0.0f */)
+bool UPaperZDAnimationSkin_Flipbook::ApplySkinToAnimation(const UPaperZDAnimSequence* AnimSequence, UPrimitiveComponent* RenderComponent, float DirectionalAngle /* = 0.0f */)
 {
 	UPaperFlipbookComponent* Sprite = Cast<UPaperFlipbookComponent>(RenderComponent);
 	if (Sprite)
@@ -18,16 +18,18 @@ void UPaperZDAnimationSkin_Flipbook::ApplySkinToAnimation(const UPaperZDAnimSequ
 		const int32 DirectionalIndex = AnimSequence->GetDirectionIndexByAngle(DirectionalAngle);
 		if (SkinsPerAnimation.Contains(AnimSequence))
 		{
-			UPaperFlipbook* Flipbook = SkinsPerAnimation[AnimSequence].AnimationDirections.IsValidIndex(DirectionalIndex) ? SkinsPerAnimation[AnimSequence].AnimationDirections[DirectionalIndex] : nullptr;
-
-			//Check if the flipbook hasn't changed
+			//Try to find the override for this specific animation and apply it.
+			UPaperFlipbook* Flipbook = SkinsPerAnimation[AnimSequence].AnimationDirections.IsValidIndex(DirectionalIndex) ? SkinsPerAnimation[AnimSequence].AnimationDirections[DirectionalIndex] : nullptr;			
 			if (Sprite->GetFlipbook() != Flipbook)
 			{
-				UPaperFlipbook* From = Sprite->GetFlipbook();
 				Sprite->SetFlipbook(Flipbook);
+				return true;
 			}
 		}
 	}
+	
+	//No override found for this animation, should continue normal behavior
+	return false;
 }
 
 void UPaperZDAnimationSkin_Flipbook::OnAnimationSourceChanged()

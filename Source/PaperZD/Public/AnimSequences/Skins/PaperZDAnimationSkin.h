@@ -32,8 +32,11 @@ public:
 	//Getters
 	FORCEINLINE UPaperZDAnimationSource* GetAnimationSource() const { return AnimSource; }
 
-	/* Modify how to render the primitive. */
-	virtual void ApplySkinToAnimation(const UPaperZDAnimSequence* AnimSequence, UPrimitiveComponent* RenderComponent, float DirectionalAngle = 0.0f);
+	/** 
+	 * Modify how to render the primitive.
+	 * Returns whether the skin actually overrides the rendering logic, or if the playback handle should just continue with its logic instead.
+	 */
+	virtual bool ApplySkinToAnimation(const UPaperZDAnimSequence* AnimSequence, UPrimitiveComponent* RenderComponent, float DirectionalAngle = 0.0f);
 
 	/* Set the Animation source that owns this sequence. */
 	void SetAnimationSource(class UPaperZDAnimationSource* InAnimSource);
