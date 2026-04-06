@@ -20,9 +20,19 @@ struct FPaperZDFlipbookAnimDataSource
 	UPROPERTY(EditAnywhere, Category = "AnimSequence")
 	TArray<UPaperFlipbook*> CompositeLayerAnimations;
 
+	/* Keyframe indices that should render mirrored for this animation entry. */
+	UPROPERTY(EditAnywhere, Category = "AnimSequence")
+	TArray<int32> MirroredKeyFrames;
+
 public:
 	//ctor
 	FPaperZDFlipbookAnimDataSource(UPaperFlipbook* InFlipbook = nullptr)
 		: Animation(InFlipbook)
 	{}
+
+	/* Returns true if the provided keyframe index should be rendered mirrored. */
+	bool IsKeyFrameMirrored(int32 KeyFrameIndex) const
+	{
+		return MirroredKeyFrames.Contains(KeyFrameIndex);
+	}
 };

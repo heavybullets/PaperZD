@@ -6,6 +6,7 @@
 #include "AnimSequences/PaperZDFlipbookAnimDataSource.h"
 #include "PaperFlipbookComponent.h"
 #include "PaperFlipbook.h"
+#include "Components/SceneComponent.h"
 
 #if ZD_VERSION_INLINED_CPP_SUPPORT
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PaperZDPlaybackHandle_Flipbook)
@@ -18,6 +19,7 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 	{
 		//Search for the primary animation, depending on the layer we're rendering
 		const FPaperZDWeightedAnimation& PrimaryAnimation = PlaybackData.WeightedAnimations[0];
+		const FPaperZDFlipbookAnimDataSource& AnimDataSource = PrimaryAnimation.AnimSequencePtr->GetAnimationData<FPaperZDFlipbookAnimDataSource>(PlaybackData.DirectionalAngle, bIsPreviewPlayback);
 		
 		//Check if we have a skin that wants to 'override' the default animation and skip the main 'render' logic if that's the case.
 		//Note: Skins could be applied and still wish for the default animation to be played on certain animation sources.
@@ -25,8 +27,7 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 		if (!bOverridenDefaultAnimation)
 		{
 			//Use the AnimSequence default animation instead
-			const FPaperZDFlipbookAnimDataSource& AnimDataSource = PrimaryAnimation.AnimSequencePtr->GetAnimationData<FPaperZDFlipbookAnimDataSource>(PlaybackData.DirectionalAngle, bIsPreviewPlayback);
-			UPaperFlipbook* Flipbook = AnimDataSource.Animation.Get();;
+			UPaperFlipbook* Flipbook = AnimDataSource.Animation.Get();
 			if (LayerIndex > 0)
 			{
 				Flipbook = AnimDataSource.CompositeLayerAnimations.IsValidIndex(LayerIndex - 1) ? AnimDataSource.CompositeLayerAnimations[LayerIndex - 1] : nullptr;
@@ -41,6 +42,10 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 
 		//We manage the time manually
 		Sprite->SetPlaybackPosition(PrimaryAnimation.PlaybackTime, false);
+
+		const UPaperFlipbook* ActiveFlipbook = Sprite->GetFlipbook();
+		const int32 KeyFrameIndex = ActiveFlipbook ? ActiveFlipbook->GetKeyFrameIndexAtTime(PrimaryAnimation.PlaybackTime, true) : INDEX_NONE;
+		ApplyFrameMirroring(RenderComponent, AnimDataSource.IsKeyFrameMirrored(KeyFrameIndex));
 	}
 }
 
@@ -52,5 +57,39 @@ void UPaperZDPlaybackHandle_Flipbook::ConfigureRenderComponent(UPrimitiveCompone
 	{
 		Sprite->Stop();
 		Sprite->SetLooping(false);
+		ClearFrameMirroring(RenderComponent);
 	}
+}
+
+void UPaperZDPlaybackHandle_Flipbook::ApplyFrameMirroring(UPrimitiveComponent* RenderComponent, bool bMirrorSprite)
+{
+	if (USceneComponent* SceneComponent = Cast<USceneComponent>(RenderComponent))
+	{
+		const bool bWasMirrored = MirroringStatePerComponent.FindRef(RenderComponent);
+		FVector RelativeScale = SceneComponent->GetRelativeScale3D();
+
+		if (bWasMirrored)
+		{
+			RelativeScale.X *= -1.0f;
+		}
+
+		RelativeScale.X = bMirrorSprite ? -FMath::Abs(RelativeScale.X) : FMath::Abs(RelativeScale.X);
+		SceneComponent->SetRelativeScale3D(RelativeScale);
+		MirroringStatePerComponent.Add(RenderComponent, bMirrorSprite);
+	}
+}
+
+void UPaperZDPlaybackHandle_Flipbook::ClearFrameMirroring(UPrimitiveComponent* RenderComponent)
+{
+	if (!RenderComponent)
+	{
+		return;
+	}
+
+	if (MirroringStatePerComponent.FindRef(RenderComponent))
+	{
+		ApplyFrameMirroring(RenderComponent, false);
+	}
+
+	MirroringStatePerComponent.Remove(RenderComponent);
 }

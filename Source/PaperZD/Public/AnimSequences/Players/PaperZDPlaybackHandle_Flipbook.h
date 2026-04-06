@@ -13,6 +13,14 @@ UCLASS()
 class PAPERZD_API UPaperZDPlaybackHandle_Flipbook : public UPaperZDPlaybackHandle
 {
 	GENERATED_BODY()
+
+private:
+	/* Last mirroring state applied to each render component. */
+	UPROPERTY(Transient)
+	TMap<TObjectPtr<UPrimitiveComponent>, bool> MirroringStatePerComponent;
+
+	void ApplyFrameMirroring(UPrimitiveComponent* RenderComponent, bool bMirrorSprite);
+	void ClearFrameMirroring(UPrimitiveComponent* RenderComponent);
 	
 	//~ Begin UPaperZDPlaybackHandle Interface
 	virtual void UpdateRenderPlayback(UPrimitiveComponent* RenderComponent, const FPaperZDAnimationPlaybackData& PlaybackData, bool bIsPreviewPlayback = false, int32 LayerIndex = 0, UPaperZDAnimationSkin* SkinOverride = nullptr) override;

@@ -36,6 +36,7 @@
 #include "Editors/DetailCustomizations/TransitionGraphNodeDetailCustomization.h"
 #include "Editors/DetailCustomizations/AnimSequenceDetailCustomization.h"
 #include "Editors/DetailCustomizations/PaperZDComponentReferenceCustomization.h"
+#include "Editors/DetailCustomizations/FlipbookAnimDataSourceCustomization.h"
 
 //For Sequencer support
 #include "ISequencerModule.h"
@@ -174,6 +175,7 @@ void FPaperZDEditorModule::RegisterCustomizations()
 	PropertyModule.RegisterCustomClassLayout(UPaperZDStateGraphNode_Transition::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FPaperZDTransitionGraphNodeDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UPaperZDAnimSequence::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FPaperZDAnimSequenceDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("PaperZDComponentReference", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPaperZDComponentReferenceCustomization::MakeInstance));
+	PropertyModule.RegisterCustomPropertyTypeLayout("PaperZDFlipbookAnimDataSource", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPaperZDFlipbookAnimDataSourceCustomization::MakeInstance));
 	//PropertyModule.RegisterCustomClassLayout(UPaperZDAnimGraphNode_Transition::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FAnimGraphNodeDetailCustomization::MakeInstance));
 }
 
