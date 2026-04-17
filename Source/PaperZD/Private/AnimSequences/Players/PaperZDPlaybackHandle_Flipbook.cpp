@@ -6,7 +6,6 @@
 #include "AnimSequences/PaperZDFlipbookAnimDataSource.h"
 #include "PaperFlipbookComponent.h"
 #include "PaperFlipbook.h"
-#include "Components/SceneComponent.h"
 
 #if ZD_VERSION_INLINED_CPP_SUPPORT
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PaperZDPlaybackHandle_Flipbook)
@@ -20,10 +19,10 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 		//Search for the primary animation, depending on the layer we're rendering
 		const FPaperZDWeightedAnimation& PrimaryAnimation = PlaybackData.WeightedAnimations[0];
 		const FPaperZDFlipbookAnimDataSource& AnimDataSource = PrimaryAnimation.AnimSequencePtr->GetAnimationData<FPaperZDFlipbookAnimDataSource>(PlaybackData.DirectionalAngle, bIsPreviewPlayback);
-		
+
 		//Check if we have a skin that wants to 'override' the default animation and skip the main 'render' logic if that's the case.
 		//Note: Skins could be applied and still wish for the default animation to be played on certain animation sources.
-		const bool bOverridenDefaultAnimation = SkinOverride && SkinOverride->ApplySkinToAnimation(PrimaryAnimation.AnimSequencePtr.Get(), RenderComponent, PlaybackData.DirectionalAngle); 
+		const bool bOverridenDefaultAnimation = SkinOverride && SkinOverride->ApplySkinToAnimation(PrimaryAnimation.AnimSequencePtr.Get(), RenderComponent, PlaybackData.DirectionalAngle);
 		if (!bOverridenDefaultAnimation)
 		{
 			//Use the AnimSequence default animation instead
@@ -45,7 +44,10 @@ void UPaperZDPlaybackHandle_Flipbook::UpdateRenderPlayback(UPrimitiveComponent* 
 
 		const UPaperFlipbook* ActiveFlipbook = Sprite->GetFlipbook();
 		const int32 KeyFrameIndex = ActiveFlipbook ? ActiveFlipbook->GetKeyFrameIndexAtTime(PrimaryAnimation.PlaybackTime, true) : INDEX_NONE;
-		ApplyFrameMirroring(RenderComponent, AnimDataSource.IsKeyFrameMirrored(KeyFrameIndex));
+		ApplyFrameMirroring(
+			RenderComponent,
+			AnimDataSource.IsKeyFrameMirroredHorizontal(KeyFrameIndex),
+			AnimDataSource.IsKeyFrameMirroredVertical(KeyFrameIndex));
 	}
 }
 
@@ -61,21 +63,33 @@ void UPaperZDPlaybackHandle_Flipbook::ConfigureRenderComponent(UPrimitiveCompone
 	}
 }
 
-void UPaperZDPlaybackHandle_Flipbook::ApplyFrameMirroring(UPrimitiveComponent* RenderComponent, bool bMirrorSprite)
+void UPaperZDPlaybackHandle_Flipbook::ApplyFrameMirroring(UPrimitiveComponent* RenderComponent, bool bMirrorHorizontal, bool bMirrorVertical)
 {
 	if (USceneComponent* SceneComponent = Cast<USceneComponent>(RenderComponent))
 	{
-		const bool bWasMirrored = MirroringStatePerComponent.FindRef(RenderComponent);
+		const FPaperZDFlipbookMirroringState PreviousState = MirroringStatePerComponent.FindRef(RenderComponent);
 		FVector RelativeScale = SceneComponent->GetRelativeScale3D();
 
-		if (bWasMirrored)
+		//Normalize axes that were flipped on the previous frame so we can re-derive the absolute scale cleanly.
+		//Paper sprites face along Y, so visual vertical flipping is a Z-scale flip (not Y).
+		if (PreviousState.bHorizontal)
 		{
 			RelativeScale.X *= -1.0f;
 		}
+		if (PreviousState.bVertical)
+		{
+			RelativeScale.Z *= -1.0f;
+		}
 
-		RelativeScale.X = bMirrorSprite ? -FMath::Abs(RelativeScale.X) : FMath::Abs(RelativeScale.X);
+		//Apply the new per-axis state. Working from the absolute value keeps sign correct regardless of the prior frame.
+		RelativeScale.X = bMirrorHorizontal ? -FMath::Abs(RelativeScale.X) : FMath::Abs(RelativeScale.X);
+		RelativeScale.Z = bMirrorVertical ? -FMath::Abs(RelativeScale.Z) : FMath::Abs(RelativeScale.Z);
 		SceneComponent->SetRelativeScale3D(RelativeScale);
-		MirroringStatePerComponent.Add(RenderComponent, bMirrorSprite);
+
+		FPaperZDFlipbookMirroringState NewState;
+		NewState.bHorizontal = bMirrorHorizontal;
+		NewState.bVertical = bMirrorVertical;
+		MirroringStatePerComponent.Add(RenderComponent, NewState);
 	}
 }
 
@@ -86,9 +100,11 @@ void UPaperZDPlaybackHandle_Flipbook::ClearFrameMirroring(UPrimitiveComponent* R
 		return;
 	}
 
-	if (MirroringStatePerComponent.FindRef(RenderComponent))
+	const FPaperZDFlipbookMirroringState* ExistingState = MirroringStatePerComponent.Find(RenderComponent);
+	if (ExistingState && (ExistingState->bHorizontal || ExistingState->bVertical))
 	{
-		ApplyFrameMirroring(RenderComponent, false);
+		//Unflip any currently-mirrored axes back to their positive form.
+		ApplyFrameMirroring(RenderComponent, false, false);
 	}
 
 	MirroringStatePerComponent.Remove(RenderComponent);
