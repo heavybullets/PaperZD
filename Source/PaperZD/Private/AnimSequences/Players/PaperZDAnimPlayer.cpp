@@ -214,7 +214,7 @@ void UPaperZDAnimPlayer::PlaySingleAnimation(const UPaperZDAnimSequence* AnimSeq
 	ProcessDeferredAnimNotifies();
 }
 
-void UPaperZDAnimPlayer::Play(const FPaperZDAnimationPlaybackData& PlaybackData)
+void UPaperZDAnimPlayer::Play(const FPaperZDAnimationPlaybackData& PlaybackData, bool bProcessDeferredNotifies /* = true */)
 {
 	if (PlaybackData.WeightedAnimations.Num() && PlaybackHandle && RegisteredRenderComponent.IsValid())
 	{
@@ -246,7 +246,10 @@ void UPaperZDAnimPlayer::Play(const FPaperZDAnimationPlaybackData& PlaybackData)
 	}
 
 	//Process any pending notify that was deferred to after the render pass
-	ProcessDeferredAnimNotifies();
+	if (bProcessDeferredNotifies)
+	{
+		ProcessDeferredAnimNotifies();
+	}
 }
 
 void UPaperZDAnimPlayer::RegisterRenderComponent(UPrimitiveComponent* RenderComponent)

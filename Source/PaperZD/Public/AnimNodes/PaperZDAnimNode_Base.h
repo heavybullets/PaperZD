@@ -47,11 +47,19 @@ struct FPaperZDAnimationUpdateContext : public FPaperZDAnimationBaseContext
 	/* The effective weight that the updates node will have, in respect to the sink node. */
 	float Weight;
 
+	/* Identifier shared by every traversal of the same graph update. */
+	uint64 GraphUpdateId;
+
+	/* True when the graph is being updated only to commit an explicit animation jump. */
+	bool bIsJumpUpdate;
+
 	//ctor
 	FPaperZDAnimationUpdateContext(UPaperZDAnimInstance* InAnimInstance, float InDeltaTime)
 		: FPaperZDAnimationBaseContext(InAnimInstance)
 		, DeltaTime(InDeltaTime)
 		, Weight(1.0f)
+		, GraphUpdateId(GFrameNumber)
+		, bIsJumpUpdate(false)
 	{}
 
 	//copy constructor
@@ -59,6 +67,8 @@ struct FPaperZDAnimationUpdateContext : public FPaperZDAnimationBaseContext
 		: FPaperZDAnimationBaseContext(OtherContext.AnimInstance)
 		, DeltaTime(OtherContext.DeltaTime)
 		, Weight(OtherContext.Weight)
+		, GraphUpdateId(OtherContext.GraphUpdateId)
+		, bIsJumpUpdate(OtherContext.bIsJumpUpdate)
 	{}
 
 	/* Returns a copy of this context, after applying a fractional weight to it. */

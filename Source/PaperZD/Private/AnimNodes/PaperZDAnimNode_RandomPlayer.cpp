@@ -35,7 +35,7 @@ void FPaperZDAnimNode_RandomPlayer::OnUpdate(const FPaperZDAnimationUpdateContex
 		//Independent of the weight we have, we should update the playback, to avoid losing sync
 		const float PreviousTime = PlaybackTime;
  		UPaperZDAnimPlayer* Player = UpdateContext.AnimInstance->GetPlayer();
-		Player->TickPlayback(Entries[CurrentEntryIdx].AnimSequence, PlaybackTime, UpdateContext.DeltaTime * PlayRate, true, UpdateContext.AnimInstance, UpdateContext.Weight);
+		Player->TickPlayback(Entries[CurrentEntryIdx].AnimSequence, PlaybackTime, UpdateContext.DeltaTime * PlayRate, true, UpdateContext.AnimInstance, UpdateContext.Weight, UpdateContext.bIsJumpUpdate);
 
 		//Check if we have looped yet
 		const bool bLoopComplete = PlayRate > 0.0f ? PreviousTime > PlaybackTime : PreviousTime < PlaybackTime;
