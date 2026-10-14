@@ -7,7 +7,7 @@
 #endif
 
 FPaperZDAnimNode_CacheAnimation::FPaperZDAnimNode_CacheAnimation()
-	: LastUpdateFrameNumber(INDEX_NONE)
+	: LastGraphUpdateId(INDEX_NONE)
 	, bEverInitialized(false)
 	, bStaleAnimationData(true)
 {}
@@ -20,18 +20,19 @@ void FPaperZDAnimNode_CacheAnimation::OnInitialize(const FPaperZDAnimationInitCo
 		Animation.Initialize(InitContext);
 		bEverInitialized = true;
 
-		//Make sure the next update triggers, by forcibly setting the frame number to be stale.
-		LastUpdateFrameNumber = GFrameNumber - 1; 
+		//Make sure the next update triggers.
+		LastGraphUpdateId = INDEX_NONE;
 	}
 }
 
 void FPaperZDAnimNode_CacheAnimation::OnUpdate(const FPaperZDAnimationUpdateContext& UpdateContext)
 {
-	//We only update once per frame
-	if (LastUpdateFrameNumber != GFrameNumber)
+	//Only update once per graph traversal. A jump can run an additional traversal in the same engine
+	//frame, so the engine frame number alone is not sufficient to identify valid cached data.
+	if (LastGraphUpdateId != UpdateContext.GraphUpdateId)
 	{
 		Animation.Update(UpdateContext);
-		LastUpdateFrameNumber = GFrameNumber;
+		LastGraphUpdateId = UpdateContext.GraphUpdateId;
 		bStaleAnimationData = true;
 	}
 }

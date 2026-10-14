@@ -82,6 +82,21 @@ class PAPERZD_API UPaperZDAnimInstance : public UObject
 		FPaperZDAnimationPlaybackData PlaybackData;
 	};
 	TArray<FProcessedAnimationOverrideData> ProcessedOverrideData;
+
+	/* Jump requests are queued while the graph is already processing to prevent recursive animation evaluation. */
+	struct FPendingJumpRequest
+	{
+		FName JumpName;
+		FName StateMachineName;
+
+		FPendingJumpRequest(FName InJumpName, FName InStateMachineName)
+			: JumpName(InJumpName)
+			, StateMachineName(InStateMachineName)
+		{}
+	};
+	TArray<FPendingJumpRequest> PendingJumpRequests;
+	bool bIsProcessingAnimations;
+	uint64 AnimationUpdateCounter;
 	
 public:
 	/* If this AnimBP should globally ignore time dilation. */
@@ -137,7 +152,9 @@ public:
 	APaperZDCharacter* GetPaperCharacter() const;
 
 	/**
-	 * Changes current execution state and jumps to the given JumpNode name.
+	 * Changes current execution state and jumps to the given JumpNode name. A successful jump is evaluated
+	 * with zero delta time before this function returns, unless called re-entrantly while the graph is already
+	 * processing, in which case it is committed at the end of the active animation pass.
 	 * @param JumpName			Name of the jump node we wish to go to.
 	 * @param StateMachineName	If specified, the jump link will only be applied to the given state machine.
 	 */
@@ -229,9 +246,18 @@ private:
 	/* Obtains the equivalent delta time to use ignoring time dilation. */
 	float GetDeltaTimeIgnoredDilation(float DeltaTime);
 
-	/* Process the animation nodes. */
-	void ProcessAnimations(float DeltaTime);
+	/* Queue-safe implementation that applies a jump to the requested state machine nodes. */
+	bool ApplyJumpToNode(FName JumpName, FName StateMachineName);
 
-	/* Update any animation override that is currently running. */
-	void UpdateAnimationOverrides(float DeltaTime);
+	/* Process the animation nodes. Can be limited to pending jumps for a synchronous JumpToNode call. */
+	void ProcessAnimations(float DeltaTime, bool bOnlyProcessPendingJumps = false);
+
+	/* Run one animation graph update/evaluation/render pass. */
+	void RunAnimationPass(float DeltaTime, bool bIsJumpUpdate);
+
+	/* Apply queued jump requests and commit successful ones through a zero-time graph pass. */
+	void FlushPendingJumps();
+
+	/* Update any animation override that is currently running. Jump passes only re-publish slot data without advancing playback. */
+	void UpdateAnimationOverrides(float DeltaTime, bool bIsJumpUpdate = false);
 };

@@ -200,8 +200,10 @@ public:
 
 	/**
 	 * Evaluates the given animation data structure and potentially mixes all the given animations into a final pose, if the AnimSequence source supports it.
+	 * Deferred notify processing can be skipped for render-only passes that collected no notifies (e.g. committing an animation jump),
+	 * otherwise every currently active notify state would be considered interrupted and aborted.
 	 */
-	 void Play(const FPaperZDAnimationPlaybackData& PlaybackData);
+	 void Play(const FPaperZDAnimationPlaybackData& PlaybackData, bool bProcessDeferredNotifies = true);
 
 	/**
 	 * Registers the render component to use for rendering the animation sequences.

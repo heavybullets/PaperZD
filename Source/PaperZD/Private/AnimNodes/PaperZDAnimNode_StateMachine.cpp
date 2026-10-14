@@ -79,47 +79,53 @@ void FPaperZDAnimNode_StateMachine::OnUpdate(const FPaperZDAnimationUpdateContex
 		//Transitional nodes need to be removed in a deferred way, because they complete their "AnimationComplete" callback while updating
 		//but by this point they haven't been evaluated and rendered.
 		//We proceed to pop the pending transitional anim node now, when its "Evaluate" method has already been called.
-		if (bPopTransitionalAnimNode)
+		//Jump passes don't consume the pop: a jump on another state machine shouldn't replace this machine's final transitional pose a pass early.
+		if (bPopTransitionalAnimNode && !UpdateContext.bIsJumpUpdate)
 		{
 			CurrentTransitionalAnimNode = nullptr;
 			bPopTransitionalAnimNode = false;
 		}
 
-		//Check for any pending state change
-		FNodeEvaluationContext Context(UpdateContext.AnimInstance);
-		Context.VisitedNodes.Add(CurrentStateIndex);
-		while (const FPaperZDAnimStateMachineLink* NextTransition = CheckValidTransition(CurrentStateIndex, Context))
+		//A jump update exists to commit the explicitly requested state. Do not immediately transition
+		//away from that state before it has had a chance to be evaluated and rendered.
+		if (!UpdateContext.bIsJumpUpdate)
 		{
-			SetState(NextTransition->TargetNodeIndex, UpdateContext);
+			//Check for any pending state change
+			FNodeEvaluationContext Context(UpdateContext.AnimInstance);
 			Context.VisitedNodes.Add(CurrentStateIndex);
-			
-			//Check for transitional graphs
-			if (NextTransition->HasTransitionalAnimations())
+			while (const FPaperZDAnimStateMachineLink* NextTransition = CheckValidTransition(CurrentStateIndex, Context))
 			{
-				//Anim node could have been ignored when compiled (empty result node), in which case it exists but has no animations that could trigger the EndLoop callback
-				//we need to make sure that the result LinkID is at least linked to something, otherwise we could potentially end up with an AnimGraph without players
-				//in which case they won't be able to ever "end" by reaching the end of their animations.
- 				FPaperZDAnimNode_Sink* TransitionalAnimNode = UpdateContext.GetAnimBPClass()->GetAnimNodeByPropertyIndex<FPaperZDAnimNode_Sink>(Context.AnimInstance, NextTransition->TransitionalAnimNodeIndex);
- 				if (TransitionalAnimNode && TransitionalAnimNode->HasAnimationData())
- 				{
-					CurrentTransitionalAnimNode = TransitionalAnimNode;
- 				}
-			}
+				SetState(NextTransition->TargetNodeIndex, UpdateContext);
+				Context.VisitedNodes.Add(CurrentStateIndex);
 
-			//New AnimNode needs to be initialized on entry
-			FPaperZDAnimationInitContext InitContext(UpdateContext.AnimInstance);
-			CurrentStateAnimNode->Initialize(InitContext);
+				//Check for transitional graphs
+				if (NextTransition->HasTransitionalAnimations())
+				{
+					//Anim node could have been ignored when compiled (empty result node), in which case it exists but has no animations that could trigger the EndLoop callback
+					//we need to make sure that the result LinkID is at least linked to something, otherwise we could potentially end up with an AnimGraph without players
+					//in which case they won't be able to ever "end" by reaching the end of their animations.
+					FPaperZDAnimNode_Sink* TransitionalAnimNode = UpdateContext.GetAnimBPClass()->GetAnimNodeByPropertyIndex<FPaperZDAnimNode_Sink>(Context.AnimInstance, NextTransition->TransitionalAnimNodeIndex);
+					if (TransitionalAnimNode && TransitionalAnimNode->HasAnimationData())
+					{
+						CurrentTransitionalAnimNode = TransitionalAnimNode;
+					}
+				}
 
-			//Initialize optional TransitionalNode
-			if (CurrentTransitionalAnimNode)
-			{
-				CurrentTransitionalAnimNode->Initialize(InitContext);
-			}
+				//New AnimNode needs to be initialized on entry
+				FPaperZDAnimationInitContext InitContext(UpdateContext.AnimInstance);
+				CurrentStateAnimNode->Initialize(InitContext);
 
-			//We continue transitioning unless the AnimInstance doesn't allow for it
-			if (!UpdateContext.AnimInstance->AllowsTransitionalStates())
-			{
-				break;
+				//Initialize optional TransitionalNode
+				if (CurrentTransitionalAnimNode)
+				{
+					CurrentTransitionalAnimNode->Initialize(InitContext);
+				}
+
+				//We continue transitioning unless the AnimInstance doesn't allow for it
+				if (!UpdateContext.AnimInstance->AllowsTransitionalStates())
+				{
+					break;
+				}
 			}
 		}
 
@@ -148,7 +154,7 @@ FName FPaperZDAnimNode_StateMachine::GetMachineName() const
 	return CachedStateMachine ? CachedStateMachine->MachineName : NAME_None;
 }
 
-void FPaperZDAnimNode_StateMachine::JumpToNode(FName Name, const FPaperZDAnimationBaseContext& Context)
+bool FPaperZDAnimNode_StateMachine::JumpToNode(FName Name, const FPaperZDAnimationBaseContext& Context)
 {
 	if (CachedStateMachine)
 	{
@@ -160,8 +166,11 @@ void FPaperZDAnimNode_StateMachine::JumpToNode(FName Name, const FPaperZDAnimati
 			//Initialize the state
 			FPaperZDAnimationInitContext InitContext(Context.AnimInstance);
 			CurrentStateAnimNode->Initialize(InitContext);
+			return true;
 		}
 	}
+
+	return false;
 }
 
 void FPaperZDAnimNode_StateMachine::SetState(int32 NewState, const FPaperZDAnimationBaseContext& Context)

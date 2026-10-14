@@ -83,8 +83,8 @@ public:
 	/* Obtain the name of the state machine linked to this node. */
 	FName GetMachineName() const;
 
-	/* Takes the given JumpLink and forcefully sets the new target state to the JumpNode's target. */
-	void JumpToNode(FName Name, const FPaperZDAnimationBaseContext& Context);
+	/* Takes the given JumpLink and forcefully sets the new target state to the JumpNode's target. Returns whether the jump was found and applied. */
+	bool JumpToNode(FName Name, const FPaperZDAnimationBaseContext& Context);
 
 private:
 	/* Sets the given state, triggering any delegate and adding the state's AnimNode to the queue. */

@@ -33,7 +33,7 @@ void FPaperZDAnimNode_PlaySequence::OnUpdate(const FPaperZDAnimationUpdateContex
 	{
 		//Independent of the weight we have, we should update the playback, to avoid losing sync
 		UPaperZDAnimPlayer* Player = UpdateContext.AnimInstance->GetPlayer();
-		Player->TickPlayback(AnimSequence, PlaybackTime, UpdateContext.DeltaTime * PlayRate, bLoopAnimation, UpdateContext.AnimInstance, UpdateContext.Weight);		
+		Player->TickPlayback(AnimSequence, PlaybackTime, UpdateContext.DeltaTime * PlayRate, bLoopAnimation, UpdateContext.AnimInstance, UpdateContext.Weight, UpdateContext.bIsJumpUpdate);
 	}
 }
 

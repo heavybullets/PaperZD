@@ -5,7 +5,7 @@
 #include "PaperZDAnimNode_CacheAnimation.generated.h"
 
 /**
- * Caches the animation data enabling it to be read from multiple nodes at a time, making sure the animation sub-tree is only updated and evaluated once per frame.
+ * Caches the animation data enabling it to be read from multiple nodes at a time, making sure the animation sub-tree is only updated and evaluated once per graph update.
  * To access the data use the "Use Cached Animation" node.
  */
 USTRUCT()
@@ -17,11 +17,11 @@ struct PAPERZD_API FPaperZDAnimNode_CacheAnimation : public FPaperZDAnimNode_Bas
 	UPROPERTY(EditAnywhere, Category = "Input")
 	FPaperZDAnimDataLink Animation;
 
-	/* The animation data that we're caching, stored so we don't evaluate the same data multiple times on the same frame. */
+	/* The animation data that we're caching, stored so we don't evaluate the same data multiple times during the same graph update. */
 	FPaperZDAnimationPlaybackData CachedAnimationData;
 
-	/* Counter for the global frame number on the engine, used to distinguish when a cache is stale and should be discarded. */
-	uint64 LastUpdateFrameNumber;
+	/* Identifier of the graph update that produced the current cached data. */
+	uint64 LastGraphUpdateId;
 
 	/* Flag for knowing if this node has ever been initialized, needed due to state nodes re-initializing whenever they become relevant. */
 	bool bEverInitialized;

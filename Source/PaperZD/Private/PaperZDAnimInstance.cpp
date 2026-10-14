@@ -31,6 +31,8 @@ UPaperZDAnimInstance::UPaperZDAnimInstance()
 	bIgnoreTimeDilation = false;
 	bAllowTransitionalStates = true;
 	bSequencerOverride = false;
+	bIsProcessingAnimations = false;
+	AnimationUpdateCounter = 0;
 }
 
 UWorld* UPaperZDAnimInstance::GetWorld() const
@@ -148,6 +150,19 @@ APaperZDCharacter* UPaperZDAnimInstance::GetPaperCharacter() const
 
 void UPaperZDAnimInstance::JumpToNode(FName JumpName, FName StateMachineName /* = NAME_None */)
 {
+	PendingJumpRequests.Emplace(JumpName, StateMachineName);
+
+	//If this is called from an animation callback, the active ProcessAnimations call will flush the request
+	//after its current pass. Otherwise commit it synchronously so player/render state is coherent on return.
+	if (!bIsProcessingAnimations)
+	{
+		ProcessAnimations(0.0f, true);
+	}
+}
+
+bool UPaperZDAnimInstance::ApplyJumpToNode(FName JumpName, FName StateMachineName)
+{
+	bool bJumped = false;
 	UPaperZDAnimBPGeneratedClass* AnimClass = Cast<UPaperZDAnimBPGeneratedClass>(GetClass());
 	if (AnimClass)
 	{
@@ -156,54 +171,137 @@ void UPaperZDAnimInstance::JumpToNode(FName JumpName, FName StateMachineName /* 
 		{
 			if (StateMachineName != NAME_None && StateMachineNode->GetMachineName() == StateMachineName)
 			{
-				StateMachineNode->JumpToNode(JumpName, Context);
+				bJumped = StateMachineNode->JumpToNode(JumpName, Context);
 				break;
 			}
 			else if (StateMachineName == NAME_None)
 			{ 
-				StateMachineNode->JumpToNode(JumpName, Context);
+				bJumped |= StateMachineNode->JumpToNode(JumpName, Context);
 			}
 		}
 	}
+
+	return bJumped;
 }
 
-void UPaperZDAnimInstance::ProcessAnimations(float DeltaTime)
+void UPaperZDAnimInstance::ProcessAnimations(float DeltaTime, bool bOnlyProcessPendingJumps /* = false */)
 {
-	if (RootNode)
+	if (!RootNode || bIsProcessingAnimations)
 	{
-		{
-			SCOPE_CYCLE_COUNTER(STAT_UpdateAnimGraph);
+		return;
+	}
 
-			//Update any animation override first
-			UpdateAnimationOverrides(DeltaTime);
+	TGuardValue<bool> ProcessingGuard(bIsProcessingAnimations, true);
 
-			//First do a pass and update any animation node
-			FPaperZDAnimationUpdateContext UpdateContext(this, DeltaTime);
-			RootNode->Update(UpdateContext);
+	//Handle any request left by a callback before running the regular animation update.
+	FlushPendingJumps();
 
-			//We now clear the processed animation override data for next tick
-			ProcessedOverrideData.Empty(AnimationOverrideHandles.Num());
-		}
+	if (!bOnlyProcessPendingJumps)
+	{
+		RunAnimationPass(DeltaTime, false);
 
-		{
-			SCOPE_CYCLE_COUNTER(STAT_RenderAnimations);
-
-			//Then evaluate the sink node, obtaining the final animation data
-			FPaperZDAnimationPlaybackData PlaybackData;
-			RootNode->Evaluate(PlaybackData);
-
-			//Pass to the AnimPlayer
-			AnimPlayer->Play(PlaybackData);
-		}
+		//A notify, sequence-changed callback, or state event may have requested a jump during the pass.
+		FlushPendingJumps();
 	}
 }
 
-void UPaperZDAnimInstance::UpdateAnimationOverrides(float DeltaTime)
+void UPaperZDAnimInstance::RunAnimationPass(float DeltaTime, bool bIsJumpUpdate)
+{
+	{
+		SCOPE_CYCLE_COUNTER(STAT_UpdateAnimGraph);
+
+		//Update any animation override first
+		UpdateAnimationOverrides(DeltaTime, bIsJumpUpdate);
+
+		//First do a pass and update any animation node
+		FPaperZDAnimationUpdateContext UpdateContext(this, DeltaTime);
+		UpdateContext.GraphUpdateId = ++AnimationUpdateCounter;
+		UpdateContext.bIsJumpUpdate = bIsJumpUpdate;
+		RootNode->Update(UpdateContext);
+
+		//We now clear the processed animation override data for next tick
+		ProcessedOverrideData.Empty(AnimationOverrideHandles.Num());
+	}
+
+	{
+		SCOPE_CYCLE_COUNTER(STAT_RenderAnimations);
+
+		//Then evaluate the sink node, obtaining the final animation data
+		FPaperZDAnimationPlaybackData PlaybackData;
+		RootNode->Evaluate(PlaybackData);
+
+		//Pass to the AnimPlayer. Jump passes collect no notifies, so notify reconciliation must be skipped
+		//or every active notify state would be aborted even though its animation is still playing.
+		AnimPlayer->Play(PlaybackData, !bIsJumpUpdate);
+	}
+}
+
+void UPaperZDAnimInstance::FlushPendingJumps()
+{
+	//A state event or sequence-changed callback can request another jump while a request is being
+	//committed. Bound the loop so a Blueprint callback cycle cannot lock the game thread forever.
+	static constexpr int32 MaxJumpFlushIterations = 16;
+	bool bNeedsJumpUpdate = false;
+
+	for (int32 Iteration = 0; Iteration < MaxJumpFlushIterations; ++Iteration)
+	{
+		if (PendingJumpRequests.Num() > 0)
+		{
+			TArray<FPendingJumpRequest> Requests = MoveTemp(PendingJumpRequests);
+			for (const FPendingJumpRequest& Request : Requests)
+			{
+				bNeedsJumpUpdate |= ApplyJumpToNode(Request.JumpName, Request.StateMachineName);
+			}
+
+			//Apply requests queued by state callbacks before rendering an intermediate state.
+			continue;
+		}
+
+		if (bNeedsJumpUpdate)
+		{
+			bNeedsJumpUpdate = false;
+			RunAnimationPass(0.0f, true);
+			continue;
+		}
+
+		return;
+	}
+
+	//Render the last state that was successfully applied, but discard any callback cycle that
+	//continued past the safety bound.
+	if (bNeedsJumpUpdate)
+	{
+		RunAnimationPass(0.0f, true);
+	}
+
+	if (PendingJumpRequests.Num() > 0)
+	{
+		ensureMsgf(false, TEXT("PaperZD stopped a recursive JumpToNode callback cycle after %d iterations."), MaxJumpFlushIterations);
+		PendingJumpRequests.Reset();
+	}
+}
+
+void UPaperZDAnimInstance::UpdateAnimationOverrides(float DeltaTime, bool bIsJumpUpdate /* = false */)
 {
 	for (int32 i = AnimationOverrideHandles.Num() - 1; i >= 0; i--)
 	{
 		FAnimationOverrideHandle& Handle = AnimationOverrideHandles[i];
-		AnimPlayer->TickPlayback(Handle.AnimSequencePtr.Get(), Handle.PlaybackTime, DeltaTime * Handle.PlayRate, false, this);
+
+		//Jump passes run with zero delta time and only exist to commit an explicitly requested state.
+		//Re-publish the slot data so override slots keep rendering their animation, but do not advance playback,
+		//trigger notifies, nor complete overrides: completion callbacks should never fire from inside JumpToNode.
+		if (bIsJumpUpdate)
+		{
+			if (Handle.AnimSequencePtr.IsValid())
+			{
+				FPaperZDAnimationPlaybackData PlaybackData;
+				PlaybackData.SetAnimation(Handle.AnimSequencePtr.Get(), Handle.PlaybackTime);
+				SetAnimationOverrideDataBySlot(Handle.SlotName, PlaybackData);
+			}
+			continue;
+		}
+
+		AnimPlayer->TickPlayback(Handle.AnimSequencePtr.Get(), Handle.PlaybackTime, DeltaTime * Handle.PlayRate, false, this, 1.0f);
 
 		//It could happen that after we tick playback of the AnimSequence, the AnimationOverrideHandles array changed somehow,
 		//either by removal of any of the Handles (by stopping an override) or by adding another handle on top (which would change the memory address of the array).
