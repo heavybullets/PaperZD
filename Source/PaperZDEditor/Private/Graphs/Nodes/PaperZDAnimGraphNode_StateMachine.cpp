@@ -350,8 +350,9 @@ void UPaperZDAnimGraphNode_StateMachine::OnProcessDuringCompilation(FPaperZDAnim
 		UEdGraphPin* OutputPin = JumpLink->GetOutputPin();
 		if (OutputPin->LinkedTo.Num() > 0)
 		{
-			const UPaperZDStateGraphNode_State* JumpTarget = Cast<const UPaperZDStateGraphNode_State>(OutputPin->LinkedTo[0]->GetOwningNode());
-			if (JumpTarget)
+			//Conduits are valid jump targets too, they get resolved to a state when the jump is taken
+			UPaperZDStateGraphNode* JumpTarget = Cast<UPaperZDStateGraphNode>(OutputPin->LinkedTo[0]->GetOwningNode());
+			if (JumpTarget && (JumpTarget->IsA<UPaperZDStateGraphNode_State>() || JumpTarget->IsA<UPaperZDStateGraphNode_Conduit>()))
 			{
 				int32* pNodeIdx = GraphNodeToStateMachineNodeId.Find(JumpTarget);
 				check(pNodeIdx);

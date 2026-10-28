@@ -268,8 +268,8 @@ const FPinConnectionResponse UPaperZDStateMachineSchema::CanCreateConnection(con
 		return FPinConnectionResponse(CONNECT_RESPONSE_BREAK_OTHERS_A, TEXT("Connect Root to State"));
 	}
 
-	//Create Jump - State
-	if (NodeA->IsA(UPaperZDStateGraphNode_Jump::StaticClass()) && NodeB->IsA(UPaperZDStateGraphNode_State::StaticClass()))
+	//Create Jump - State / Jump - Conduit, the latter entering whichever state the conduit's rules pick
+	if (NodeA->IsA(UPaperZDStateGraphNode_Jump::StaticClass()) && (NodeB->IsA(UPaperZDStateGraphNode_State::StaticClass()) || NodeB->IsA(UPaperZDStateGraphNode_Conduit::StaticClass())))
 	{
 		return FPinConnectionResponse(CONNECT_RESPONSE_BREAK_OTHERS_A, TEXT("Connect Jump to State"));
 	}

@@ -155,7 +155,22 @@ void FPaperZDAnimNode_StateMachine::JumpToNode(FName Name, const FPaperZDAnimati
 		const int32* pTargetNodeIdx = CachedStateMachine->JumpLinks.Find(Name);
 		if (pTargetNodeIdx)
 		{
-			SetState(*pTargetNodeIdx, Context);
+			//A jump into a conduit enters the state its first valid exit leads to, same as a transition passing through it would.
+			//The conduit's own rule is not evaluated (the jump is the entry) and if no exit is valid, the jump is ignored, as we cannot stay on a conduit.
+			int32 TargetNodeIdx = *pTargetNodeIdx;
+			if (CachedStateMachine->Nodes[TargetNodeIdx].bConduit)
+			{
+				FNodeEvaluationContext EvaluationContext(Context.AnimInstance);
+				EvaluationContext.VisitedNodes.Add(TargetNodeIdx);
+				const FPaperZDAnimStateMachineLink* ConduitLink = CheckValidTransition(TargetNodeIdx, EvaluationContext);
+				if (!ConduitLink)
+				{
+					return;
+				}
+				TargetNodeIdx = ConduitLink->TargetNodeIndex;
+			}
+
+			SetState(TargetNodeIdx, Context);
 
 			//Initialize the state
 			FPaperZDAnimationInitContext InitContext(Context.AnimInstance);
