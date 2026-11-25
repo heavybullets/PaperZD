@@ -73,11 +73,11 @@ public:
     bool bGenerateFlipbook;
 
     // The flipbook speed
-    UPROPERTY(Category = Flipbook, EditAnywhere)
+    UPROPERTY(Category = Flipbook, EditAnywhere, meta = (EditCondition = "bGenerateFlipbook", EditConditionHides))
     float FramesPerSecond;
 
     // The material for the flipbook
-    UPROPERTY(Category = Flipbook, EditAnywhere)
+    UPROPERTY(Category = Flipbook, EditAnywhere, meta = (EditCondition = "bGenerateFlipbook", EditConditionHides))
     UMaterialInterface* Material;
 
 public:
@@ -100,20 +100,36 @@ public:
     TEnumAsByte<ESpritePivotMode::Type> PivotMode;
 
     // The pivot point to use as a base for the custom pivot point
-    UPROPERTY(Category = Sprite, EditAnywhere)
+    UPROPERTY(Category = Sprite, EditAnywhere, meta = (EditCondition = "PivotMode == ESpritePivotMode::Custom", EditConditionHides))
     TEnumAsByte<ESpritePivotMode::Type> CustomPivotModeReference;
 
     // The relative value to add on top of the base pivot point
-    UPROPERTY(Category = Sprite, EditAnywhere)
+    UPROPERTY(Category = Sprite, EditAnywhere, meta = (EditCondition = "PivotMode == ESpritePivotMode::Custom", EditConditionHides))
     FVector2D CustomPivotPoint;
+
+    // Draw the bounding box that will be generated for the sprite in the viewport
+    UPROPERTY(Category = Sprite, EditAnywhere)
+    bool bPreviewBoundingBox;
+
+    // The material for the sprite (leave empty to use the default material from the importer settings)
+    UPROPERTY(Category = Sprite, EditAnywhere)
+    UMaterialInterface* Material;
 
     // The collision configuration
     UPROPERTY(Category = Sprite, EditAnywhere)
     TEnumAsByte<ESpriteCollisionMode::Type> Collision;
 
-    // The rendering type
+    // The render geometry type
     UPROPERTY(Category = Sprite, EditAnywhere)
     TEnumAsByte<ESpritePolygonMode::Type> RenderGeometryType;
+
+    // The geometry type to use as a base for the fully custom render geometry
+    UPROPERTY(Category = Sprite, EditAnywhere, meta = (EditCondition = "RenderGeometryType == ESpritePolygonMode::FullyCustom", EditConditionHides))
+    TEnumAsByte<ESpritePolygonMode::Type> CustomRenderGeometryReference;
+
+    // The relative value (in pixels) to add on top of each vertex of the base render geometry box (Top-Left, Top-Right, Bottom-Right, Bottom-Left)
+    UPROPERTY(Category = Sprite, EditAnywhere, meta = (EditCondition = "RenderGeometryType == ESpritePolygonMode::FullyCustom", EditConditionHides))
+    FVector2D CustomRenderGeometryOffset[4];
 
 public:
 	//ctor
@@ -121,9 +137,17 @@ public:
 	: PivotMode(ESpritePivotMode::Center_Center)
     , CustomPivotModeReference(ESpritePivotMode::Center_Center)
     , CustomPivotPoint(0.0f)
+    , bPreviewBoundingBox(false)
+    , Material(nullptr)
     , Collision(ESpriteCollisionMode::Use3DPhysics)
     , RenderGeometryType(ESpritePolygonMode::TightBoundingBox)
-	{}
+    , CustomRenderGeometryReference(ESpritePolygonMode::TightBoundingBox)
+	{
+        for (FVector2D& Offset : CustomRenderGeometryOffset)
+        {
+            Offset = FVector2D::ZeroVector;
+        }
+    }
 };
 
 USTRUCT()

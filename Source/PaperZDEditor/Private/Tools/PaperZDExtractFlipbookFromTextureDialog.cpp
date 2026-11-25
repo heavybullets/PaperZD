@@ -256,6 +256,101 @@ namespace SPaperZDExtractFlipbookFromTextureHelper
 
         return PivotPoint;
     }
+
+    FSpriteGeometryCollection* GetRenderGeometry(UPaperSprite* Sprite)
+    {
+        const FStructProperty* StructProp = FindFProperty<FStructProperty>(UPaperSprite::StaticClass(), TEXT("RenderGeometry"));
+        return StructProp ? StructProp->ContainerPtrToValuePtr<FSpriteGeometryCollection>(Sprite) : nullptr;
+    }
+
+    // Reads the alpha of the texture source, only the 8 bit BGRA source format is supported (the array is left empty otherwise)
+    void LoadTextureAlpha(UTexture2D* Texture, TArray<uint8>& OutAlpha)
+    {
+        OutAlpha.Reset();
+
+        TArray64<uint8> MipData;
+        if (Texture && Texture->Source.GetFormat() == TSF_BGRA8 && Texture->Source.GetMipData(MipData, 0))
+        {
+            OutAlpha.SetNumUninitialized(Texture->Source.GetSizeX() * Texture->Source.GetSizeY());
+            for (int32 PixelIndex = 0; PixelIndex < OutAlpha.Num(); ++PixelIndex)
+            {
+                OutAlpha[PixelIndex] = MipData[PixelIndex * 4 + 3];
+            }
+        }
+    }
+
+    bool IsRectFullyTransparent(const UTexture2D* Texture, const TArray<uint8>& Alpha, const FIntRect& Rect)
+    {
+        const int32 TextureWidth = Texture->Source.GetSizeX();
+        const int32 TextureHeight = Texture->Source.GetSizeY();
+        if (Alpha.IsEmpty() || Alpha.Num() != TextureWidth * TextureHeight)
+        {
+            return false;
+        }
+
+        for (int32 Y = FMath::Max(Rect.Min.Y, 0); Y < FMath::Min(Rect.Max.Y, TextureHeight); ++Y)
+        {
+            for (int32 X = FMath::Max(Rect.Min.X, 0); X < FMath::Min(Rect.Max.X, TextureWidth); ++X)
+            {
+                if (Alpha[Y * TextureWidth + X] > 0)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // An empty sprite has nothing to fit the geometry to (the tight bounding box becomes invalid), so it gets no render geometry
+    void ApplyEmptyRenderGeometry(UPaperSprite* Sprite)
+    {
+        if (FSpriteGeometryCollection* RenderGeometry = GetRenderGeometry(Sprite))
+        {
+            RenderGeometry->Shapes.Empty();
+            RenderGeometry->GeometryType = ESpritePolygonMode::FullyCustom;
+        }
+    }
+
+    void ApplyRenderGeometry(UPaperSprite* Sprite, const FPaperZDExtractFlipbookSpriteSettings& Settings)
+    {
+        FSpriteGeometryCollection* RenderGeometry = GetRenderGeometry(Sprite);
+        if (!RenderGeometry)
+        {
+            return;
+        }
+
+        if (Settings.RenderGeometryType != ESpritePolygonMode::FullyCustom)
+        {
+            RenderGeometry->GeometryType = Settings.RenderGeometryType;
+            return;
+        }
+
+        // Build the reference geometry first, then move each of its 4 vertices by its offset and freeze it as fully custom
+        const bool bValidReference = Settings.CustomRenderGeometryReference != ESpritePolygonMode::FullyCustom;
+        RenderGeometry->GeometryType = bValidReference ? Settings.CustomRenderGeometryReference.GetValue() : ESpritePolygonMode::TightBoundingBox;
+        Sprite->PostEditChange();
+
+        for (FSpriteGeometryShape& Shape : RenderGeometry->Shapes)
+        {
+            // Only quad shapes (Source/Tight bounding box) have the 4 vertices the offsets map to
+            if (Shape.Vertices.Num() != 4)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("Custom render geometry offsets require a 4 vertex reference geometry (Source/Tight bounding box), the offsets were ignored."));
+                continue;
+            }
+
+            for (int32 VertexIndex = 0; VertexIndex < 4; ++VertexIndex)
+            {
+                Shape.Vertices[VertexIndex] += Settings.CustomRenderGeometryOffset[VertexIndex];
+            }
+
+            // The shape is no longer a box once the vertices move
+            Shape.ShapeType = ESpriteShapeType::Polygon;
+        }
+
+        RenderGeometry->GeometryType = ESpritePolygonMode::FullyCustom;
+    }
 }
 
 void SPaperZDExtractFlipbookFromTextureDialog::Construct(const FArguments& InArgs, UTexture2D* Texture)
@@ -431,6 +526,11 @@ void SPaperZDExtractFlipbookFromTextureDialog::Construct(const FArguments& InArg
                                 [
                                     SNew(SEditableTextBox)
                                     .HintText(FText::FromString("Preset Name"))
+                                    .Text_Lambda([this]() { return FText::FromString(NewPresetName); })
+                                    .OnTextChanged_Lambda([this](const FText& NewText)
+                                    {
+                                        NewPresetName = NewText.ToString();
+                                    })
                                     .OnTextCommitted_Lambda([this](const FText& NewText, ETextCommit::Type CommitType)
                                     {
                                         NewPresetName = NewText.ToString();
@@ -591,6 +691,7 @@ FReply SPaperZDExtractFlipbookFromTextureDialog::ApplyPresetClicked()
         {
             DialogSettings->Animation = Preset->AnimationSettings;
             DialogSettings->Flipbooks = Preset->FlipbookSettings;
+            NewPresetName = Preset->PresetName;
             PreviewSelectedFlipbooks();
         }
     }
@@ -613,6 +714,7 @@ FReply SPaperZDExtractFlipbookFromTextureDialog::DeletePresetClicked()
             PluginSettings->TryUpdateDefaultConfigFile();
             SavedPresetOptions.Remove(SelectedPresetOption);
             SelectedPresetOption = SavedPresetOptions[0];
+            NewPresetName.Empty();
             SavedPresetComboBox->RefreshOptions();
         }
     }
@@ -656,13 +758,26 @@ void SPaperZDExtractFlipbookFromTextureDialog::ExtractFlipbooks()
     TArray<UObject*> ObjectsToSync;
     bool bCancelled = false;
 
-    for (int32 i = 0; i < DialogSettings->Flipbooks.Num(); ++i)
+    // Read once, used to detect fully transparent sprites
+    TArray<uint8> TextureAlpha;
+    SPaperZDExtractFlipbookFromTextureHelper::LoadTextureAlpha(SourceTexture, TextureAlpha);
+
+    // A single task for all the flipbooks, so the progress bar shows the overall progress (1 frame per sprite + 1 per generated flipbook)
+    const int32 NumFlipbooks = DialogSettings->Flipbooks.Num();
+    float TotalWork = 0.0f;
+    for (int32 i = 0; i < NumFlipbooks; ++i)
+    {
+        TotalWork += Flipbooks[i].Sprites.Num() + (DialogSettings->Flipbooks[i].Flipbook.bGenerateFlipbook ? 1 : 0);
+    }
+
+    FScopedSlowTask Feedback(TotalWork, NSLOCTEXT("TiledIntegration", "TiledIntegration_ExtractFlipbooksFromTexture", "Extracting Flipbooks From Texture"));
+    Feedback.MakeDialog(true);
+
+    for (int32 i = 0; i < NumFlipbooks; ++i)
     {
         const FPaperZDExtractFlipbookSettings& FlipbookSettings = DialogSettings->Flipbooks[i];
         FPaperZDExtractedFlipbook& ExtractedFlipbook = Flipbooks[i];
-
-        FScopedSlowTask Feedback(ExtractedFlipbook.Sprites.Num() + 1, NSLOCTEXT("TiledIntegration", "TiledIntegration_ExtractSpritesFromTexture", "Extracting Flipbook From Texture"));
-        Feedback.MakeDialog(true);
+        bool bUserCancelled = false;
 
         FString SpriteNamingTemplate = FlipbookSettings.Naming.SpriteNamingTemplate;
         if (SpriteNamingTemplate.Find(TEXT("{1}")) == INDEX_NONE && (FlipbookSettings.Extraction.NumCellsX > 1 || FlipbookSettings.Extraction.NumCellsY > 1))
@@ -671,9 +786,10 @@ void SPaperZDExtractFlipbookFromTextureDialog::ExtractFlipbooks()
         }
 
         TArray<UPaperSprite*> SpritesExtracted;
+        int32 SpriteProgressIndex = 0;
         for (const FPaperZDExtractedSprite& ExtractedSprite : ExtractedFlipbook.Sprites)
         {
-            Feedback.EnterProgressFrame(1, NSLOCTEXT("TiledIntegration", "TiledIntegration_ExtractSpritesFromTexture", "Extracting Sprites From Texture"));
+            Feedback.EnterProgressFrame(1, FText::Format(NSLOCTEXT("TiledIntegration", "TiledIntegration_ExtractSprite", "Flipbook {0}/{1}: Extracting sprite {2}/{3}"), FText::AsNumber(i + 1), FText::AsNumber(NumFlipbooks), FText::AsNumber(++SpriteProgressIndex), FText::AsNumber(ExtractedFlipbook.Sprites.Num())));
 
             FString SpriteName = SpriteNamingTemplate;
             SpriteName.ReplaceInline(TEXT("{0}"), *DialogSettings->Naming.SpriteNamingTemplate);
@@ -730,13 +846,20 @@ void SPaperZDExtractFlipbookFromTextureDialog::ExtractFlipbooks()
                 const FVector2D TargetPivotPoint = SPaperZDExtractFlipbookFromTextureHelper::GetResultPivotPoint(NewAsset, FlipbookSettings);
                 NewAsset->SetPivotMode(FlipbookSettings.Sprite.PivotMode, TargetPivotPoint);
                 
-                if (FStructProperty* StructProp = FindFProperty<FStructProperty>(UPaperSprite::StaticClass(), TEXT("RenderGeometry")))
+                if (SPaperZDExtractFlipbookFromTextureHelper::IsRectFullyTransparent(SourceTexture, TextureAlpha, SpriteRect))
                 {
-                    void* StructPtr = StructProp->ContainerPtrToValuePtr<void>(NewAsset);
+                    SPaperZDExtractFlipbookFromTextureHelper::ApplyEmptyRenderGeometry(NewAsset);
+                }
+                else
+                {
+                    SPaperZDExtractFlipbookFromTextureHelper::ApplyRenderGeometry(NewAsset, FlipbookSettings.Sprite);
+                }
 
-                    if (FByteProperty* ByteProp = CastField<FByteProperty>(StructProp->Struct->FindPropertyByName(TEXT("GeometryType"))))
+                if (FlipbookSettings.Sprite.Material)
+                {
+                    if (FObjectProperty* Property = FindFProperty<FObjectProperty>(UPaperSprite::StaticClass(), TEXT("DefaultMaterial")))
                     {
-                        ByteProp->SetIntPropertyValue(ByteProp->ContainerPtrToValuePtr<void>(StructPtr),(int64)FlipbookSettings.Sprite.RenderGeometryType);
+                        Property->SetObjectPropertyValue_InContainer(NewAsset, FlipbookSettings.Sprite.Material);
                     }
                 }
 
@@ -760,14 +883,20 @@ void SPaperZDExtractFlipbookFromTextureDialog::ExtractFlipbooks()
             if (GWarn->ReceivedUserCancel())
             {
                 bCancelled = true;
+                bUserCancelled = true;
                 break;
             }
+        }
+
+        if (bUserCancelled)
+        {
+            break;
         }
 
         bCancelled |= !FlipbookSettings.Flipbook.bGenerateFlipbook;
         if (!bCancelled)
         {
-            Feedback.EnterProgressFrame(1, NSLOCTEXT("TiledIntegration", "TiledIntegration_ExtractSpritesFromTexture", "Generating Flipbook"));
+            Feedback.EnterProgressFrame(1, FText::Format(NSLOCTEXT("TiledIntegration", "TiledIntegration_GenerateFlipbook", "Flipbook {0}/{1}: Generating flipbook"), FText::AsNumber(i + 1), FText::AsNumber(NumFlipbooks)));
             UPaperFlipbookFactory* FlipbookFactory = NewObject<UPaperFlipbookFactory>();
             FlipbookFactory->KeyFrames.Empty();
 
@@ -1147,6 +1276,8 @@ void SPaperZDExtractFlipbookFromTextureDialog::InitializeFlipbookExtractSettings
     FlipbookSettings.Extraction.CellHeight = SourceTexture->GetImportedSize().Y;
 
     FlipbookSettings.Flipbook.Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Paper2D/MaskedUnlitSpriteMaterial"));
+    
+    FlipbookSettings.Sprite.Material = FlipbookSettings.Flipbook.Material;
 }
 
 void SPaperZDExtractFlipbookFromTextureDialog::InitializeAnimationSkinSettings(FPaperZDExtractFlipbooksAnimationSkinSettings& SkinSettings)
@@ -1250,6 +1381,11 @@ void FPaperZDExtractFlipbookFromTextureViewportClient::Draw(FViewport* InViewpor
             {
                 const FPaperZDExtractedSprite& Sprite = ExtractedFlipbook.Sprites[j];
                 DrawSprite(Canvas, RectOutlineColor, Sprite, i, j);
+
+                if (FlipbookSettings.Sprite.bPreviewBoundingBox)
+                {
+                    DrawBoundingBoxPreview(Canvas, FlipbookSettings.Sprite, Sprite.Rect);
+                }
             }
         }
     }
@@ -1264,6 +1400,122 @@ FLinearColor FPaperZDExtractFlipbookFromTextureViewportClient::GetBackgroundColo
     else
     {
         return FEditorViewportClient::GetBackgroundColor();
+    }
+}
+
+FIntRect FPaperZDExtractFlipbookFromTextureViewportClient::GetTightRect(const FIntRect& SpriteRect)
+{
+    const TTuple<int32, int32, int32, int32> Key(SpriteRect.Min.X, SpriteRect.Min.Y, SpriteRect.Max.X, SpriteRect.Max.Y);
+    if (const FIntRect* Cached = TightRectCache.Find(Key))
+    {
+        return *Cached;
+    }
+
+    UTexture2D* Texture = TextureBeingExtracted.Get();
+    const int32 TextureWidth = Texture ? Texture->Source.GetSizeX() : 0;
+    const int32 TextureHeight = Texture ? Texture->Source.GetSizeY() : 0;
+
+    // Read the alpha of the texture once, only the 8 bit BGRA source format is supported
+    if (!bTextureAlphaLoaded && Texture)
+    {
+        bTextureAlphaLoaded = true;
+        TArray64<uint8> MipData;
+        if (Texture->Source.GetFormat() == TSF_BGRA8 && Texture->Source.GetMipData(MipData, 0))
+        {
+            TextureAlpha.SetNumUninitialized(TextureWidth * TextureHeight);
+            for (int32 PixelIndex = 0; PixelIndex < TextureAlpha.Num(); ++PixelIndex)
+            {
+                TextureAlpha[PixelIndex] = MipData[PixelIndex * 4 + 3];
+            }
+        }
+    }
+
+    FIntRect Result = SpriteRect;
+    if (TextureAlpha.Num() == TextureWidth * TextureHeight && TextureAlpha.Num() > 0)
+    {
+        FIntRect Bounds(MAX_int32, MAX_int32, MIN_int32, MIN_int32);
+        const int32 MinX = FMath::Max(SpriteRect.Min.X, 0);
+        const int32 MinY = FMath::Max(SpriteRect.Min.Y, 0);
+        const int32 MaxX = FMath::Min(SpriteRect.Max.X, TextureWidth);
+        const int32 MaxY = FMath::Min(SpriteRect.Max.Y, TextureHeight);
+        for (int32 Y = MinY; Y < MaxY; ++Y)
+        {
+            for (int32 X = MinX; X < MaxX; ++X)
+            {
+                if (TextureAlpha[Y * TextureWidth + X] > 0)
+                {
+                    Bounds.Min.X = FMath::Min(Bounds.Min.X, X);
+                    Bounds.Min.Y = FMath::Min(Bounds.Min.Y, Y);
+                    Bounds.Max.X = FMath::Max(Bounds.Max.X, X + 1);
+                    Bounds.Max.Y = FMath::Max(Bounds.Max.Y, Y + 1);
+                }
+            }
+        }
+
+        // A fully transparent sprite keeps the source rect
+        if (Bounds.Min.X != MAX_int32)
+        {
+            Result = Bounds;
+        }
+    }
+
+    TightRectCache.Add(Key, Result);
+    return Result;
+}
+
+void FPaperZDExtractFlipbookFromTextureViewportClient::DrawBoundingBoxPreview(FCanvas* Canvas, const FPaperZDExtractFlipbookSpriteSettings& SpriteSettings, const FIntRect& SpriteRect)
+{
+    const bool bFullyCustom = SpriteSettings.RenderGeometryType == ESpritePolygonMode::FullyCustom;
+    ESpritePolygonMode::Type BaseType = bFullyCustom ? SpriteSettings.CustomRenderGeometryReference.GetValue() : SpriteSettings.RenderGeometryType.GetValue();
+
+    // Same fallback as the generation when the reference is not valid
+    if (BaseType == ESpritePolygonMode::FullyCustom)
+    {
+        BaseType = ESpritePolygonMode::TightBoundingBox;
+    }
+
+    // Only the box based geometry types can be previewed
+    FIntRect BaseRect;
+    switch (BaseType)
+    {
+        case ESpritePolygonMode::SourceBoundingBox:
+        case ESpritePolygonMode::Diced:
+            BaseRect = SpriteRect;
+            break;
+
+        case ESpritePolygonMode::TightBoundingBox:
+            BaseRect = GetTightRect(SpriteRect);
+            break;
+
+        default:
+            return;
+    }
+
+    // Top-Left, Top-Right, Bottom-Right, Bottom-Left, same order as the custom offsets
+    FVector2D Vertices[4] =
+    {
+        FVector2D(BaseRect.Min.X, BaseRect.Min.Y),
+        FVector2D(BaseRect.Max.X, BaseRect.Min.Y),
+        FVector2D(BaseRect.Max.X, BaseRect.Max.Y),
+        FVector2D(BaseRect.Min.X, BaseRect.Max.Y)
+    };
+
+    for (int32 VertexIndex = 0; VertexIndex < 4; ++VertexIndex)
+    {
+        if (bFullyCustom)
+        {
+            Vertices[VertexIndex] += SpriteSettings.CustomRenderGeometryOffset[VertexIndex];
+        }
+
+        Vertices[VertexIndex] = (Vertices[VertexIndex] - FVector2D(ZoomPos)) * ZoomAmount;
+    }
+
+    const FLinearColor PreviewColor(1.0f, 0.25f, 0.0f);
+    for (int32 VertexIndex = 0; VertexIndex < 4; ++VertexIndex)
+    {
+        FCanvasLineItem Line(Vertices[VertexIndex], Vertices[(VertexIndex + 1) % 4]);
+        Line.SetColor(PreviewColor);
+        Canvas->DrawItem(Line);
     }
 }
 

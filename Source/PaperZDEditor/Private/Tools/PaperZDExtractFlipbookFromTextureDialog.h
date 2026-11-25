@@ -12,6 +12,7 @@ class SSearchableComboBox;
 
 struct FPropertyChangedEvent;
 struct FPaperZDExtractFlipbookSettings;
+struct FPaperZDExtractFlipbookSpriteSettings;
 struct FPaperZDExtractFlipbooksAnimationSkinSettings;
 
 struct FPaperZDExtractedSprite
@@ -99,6 +100,19 @@ private:
     const UPaperZDExtractFlipbookFromTextureDialogSettings* Settings;
 
     void DrawSprite(FCanvas* Canvas, const FLinearColor& Color, const FPaperZDExtractedSprite& Sprite, int32 FlipbookIndex, int32 SpriteIndex);
+
+    // Draws the bounding box that the extracted sprite will get as render geometry
+    void DrawBoundingBoxPreview(FCanvas* Canvas, const FPaperZDExtractFlipbookSpriteSettings& SpriteSettings, const FIntRect& SpriteRect);
+
+    // Calculates the rect that excludes the fully transparent borders of the given rect (returns the same rect if the texture data can't be read)
+    FIntRect GetTightRect(const FIntRect& SpriteRect);
+
+    // Cached tight rects, per source rect
+    TMap<TTuple<int32, int32, int32, int32>, FIntRect> TightRectCache;
+
+    // Cached alpha of the texture (one byte per pixel), empty until first requested
+    TArray<uint8> TextureAlpha;
+    bool bTextureAlphaLoaded = false;
 };
 
 class SPaperZDExtractFlipbookFromTextureViewport : public SPaperZDToolViewport
