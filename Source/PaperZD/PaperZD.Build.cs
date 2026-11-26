@@ -69,6 +69,11 @@ public class PaperZD : ModuleRules
 			}
 			);
 
+#if UE_5_9_OR_LATER
+		// UE 5.9 moved the Cascade particle runtime (UParticleSystem, SpawnEmitterAttached) into the Cascade plugin.
+		PrivateDependencyModuleNames.Add("CascadeRuntime");
+#endif
+
 #if UE_5_1_OR_LATER
 		PrivateDefinitions.Add("ZD_VERSION_INLINED_CPP_SUPPORT=1");
 #else
